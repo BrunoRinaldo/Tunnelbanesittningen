@@ -2,35 +2,38 @@
 
 Design
 ------
-63 pairs, three courses, 21 tables per course, 3 pairs per table, every pair
-hosts exactly once. "No pair meets twice" is not left to a heuristic - it is
-guaranteed by construction.
+N pairs (this event: 63), three courses, N/3 tables per course, 3 pairs per
+table, every pair hosts exactly once. "No pair meets twice" is not left to a
+heuristic - it is guaranteed by construction. N must be an odd multiple of 3
+(3, 9, 15, 21, ..., 63, 69, ...); set_ring_size() derives the ring size R = N/3
+from the pair count and main() rejects any other N.
 
-Split the 63 pairs into three rings of 21. Ring 0 hosts the starter, ring 1 the
+Split the N pairs into three rings of R. Ring 0 hosts the starter, ring 1 the
 main, ring 2 the dessert. Which pair lands in which ring is now a DECISION
-VARIABLE (each ring still holds exactly 21). Instead of the old hard split by
+VARIABLE (each ring still holds exactly R). Instead of the old hard split by
 travel time to Issy there is a soft pull, ring_cost in config.py.
 
-Label the pairs in ring k as pk[0..20], indices in Z_21. For round
+Label the pairs in ring k as pk[0..R-1], indices in Z_R. For round
 r in {0=starter, 1=main, 2=dessert} the tables are
 
-    B_r(x) = { p0[x], p1[x+r], p2[2x+r] }          x in Z_21
+    B_r(x) = { p0[x], p1[x+r], p2[2x+r] }          x in Z_R
 
 This is a parallel class of the transversal design built on the Cayley table
-of Z_21 (2 is invertible mod 21, so 2x+r is a bijection). Two pairs from
+of Z_R. R odd => 2 is invertible mod R => 2x+r is a bijection; an even R would
+let two pairs meet twice, which is why main() requires R odd. Two pairs from
 different rings share a table iff a single congruence holds:
 
     p0[x] & p1[y] : r = y - x        p0[x] & p2[z] : r = z - 2x
     p1[y] & p2[z] : r = 2y - z
 
-Each has exactly one solution in Z_21, and only r in {0,1,2} is played, so any
+Each has exactly one solution in Z_R, and only r in {0,1,2} is played, so any
 two pairs meet at most once. Pairs inside the same ring never share a table at
 all. Zero repeats, provably, for every permutation p0/p1/p2 and every ring
 assignment. solve.py also verifies the result brute force before writing it.
 
 Search
 ------
-This is a quadratic assignment problem over 63 seats (seat = ring + index), so
+This is a quadratic assignment problem over N seats (seat = ring + index), so
 the exact optimum is out of reach. Three layers:
 
  1. With two rings fixed, the sum-of-travel objective is a plain linear
@@ -67,11 +70,25 @@ OUT = os.path.join(HERE, "data", "schedule.json")
 CALIB = os.path.join(HERE, "data", "calibration.json")
 BASELINE = os.path.join(HERE, "data", "baseline.json")
 
-N_RING = 21
+N_RING = 21   # pairs per ring; overwritten from the participant count in main()
 COURSES = ["starter", "main", "dessert"]
 SV = {"starter": "Förrätt", "main": "Varmrätt", "dessert": "Efterrätt"}
-INV2 = 11  # 2 * 11 = 22 = 1 (mod 21)
+INV2 = 11     # inverse of 2 mod N_RING (2*11 = 22 = 1 mod 21); reset in main()
 RING_C = (-1.0, 0.0, 1.0)  # ring_cost coefficient per ring
+
+
+def set_ring_size(n_pairs):
+    """Derive the per-ring size (and the mod-N_RING inverse of 2) from the pair count.
+
+    The three courses need three equal rings, so n_pairs must be divisible by 3.
+    The table rule B_r(x) = {p0[x], p1[x+r], p2[2x+r]} needs 2 to be invertible
+    mod the ring size, i.e. the ring size N_RING = n_pairs/3 must be odd. Together
+    that means n_pairs is an odd multiple of 3: 3, 9, 15, 21, ..., 63, 69, ...
+    (n_pairs % 6 == 3). main() rejects anything else before calling this.
+    """
+    global N_RING, INV2
+    N_RING = n_pairs // 3
+    INV2 = pow(2, -1, N_RING)
 
 
 def build_index_maps():
@@ -104,7 +121,7 @@ class W:
 
 
 def per_pair(p0, p1, p2, T1, T2, I, maps):
-    """Per-pair (total, [leg1, leg2, leg3]); rows ordered ring0(0..20), ring1, ring2."""
+    """Per-pair (total, [leg1, leg2, leg3]); rows ordered ring0, ring1, ring2."""
     P = (p0, p1, p2)
     ts, lgs = [], []
     for k in range(3):
@@ -122,7 +139,7 @@ def host_arrive_legs(perms, T1, T2, maps):
     Ring 1 hosts the main: they arrive from the starter table, leg = T1[sh, mh].
     Ring 2 hosts the dessert: they arrive from the main table, leg = T2[mh, dh].
     The starter host (ring 0) is already home, so it is not included.
-    Returns 42 values, ring1 (0..20) then ring2 (0..20).
+    Returns 2*N_RING values, ring1 then ring2.
     """
     p0, p1, p2 = perms
     a1, b1, _ = maps[1]
@@ -193,7 +210,7 @@ def cost_value(perms, T1, T2, I, maps, w):
 
 
 def objective(perms, T1, T2, I, maps, w):
-    """Same value as cost_value, but also the (63,3) per-leg array for reports."""
+    """Same value as cost_value, but also the (N,3) per-leg array for reports."""
     val, t = cost_value(perms, T1, T2, I, maps, w)
     _, legs = per_pair(*perms, T1, T2, I, maps)
     return val, t, legs
@@ -291,14 +308,14 @@ def anneal(perms, T1, T2, I, maps, w, rng, iters):
 
 # ---------------------------------------------------------------- drivers
 def initial(rng, I, restart):
-    """restart 0 = hard split by distance to Issy; others = random 21/21/21."""
+    """restart 0 = hard split by distance to Issy; others = random equal thirds."""
     ids = list(range(len(I)))
     if restart == 0:
         order = sorted(ids, key=lambda i: -float(I[i]))
-        rings = [order[0:21], order[21:42], order[42:63]]
+        rings = [order[k * N_RING:(k + 1) * N_RING] for k in range(3)]
     else:
         rng.shuffle(ids)
-        rings = [ids[0:21], ids[21:42], ids[42:63]]
+        rings = [ids[k * N_RING:(k + 1) * N_RING] for k in range(3)]
     # shuffle plain lists, not numpy arrays (random.shuffle on an ndarray is a
     # known footgun), then materialise
     for r in rings:
@@ -332,7 +349,7 @@ def baseline(T1, T2, I, rng, iters_total, restarts):
     within-ring swaps only. Used only for the before/after table."""
     maps = build_index_maps()
     order = sorted(range(len(I)), key=lambda i: -I[i])
-    rings0 = [order[0:21], order[21:42], order[42:63]]
+    rings0 = [order[k * N_RING:(k + 1) * N_RING] for k in range(3)]
 
     def obj(perms):
         p0, p1, p2 = perms
@@ -457,7 +474,7 @@ def load_travel(N):
     holes = int(np.isnan(T1).sum() + np.isnan(T2).sum())
     if holes:
         print(f"  WARNING: {holes} empty cells in the travel matrix. With free ring "
-              f"membership the solver needs the full 63x63 - run  python3 travel.py --yes\n"
+              f"membership the solver needs the full {N}x{N} - run  python3 travel.py --yes\n"
               f"           empty cells are treated as a 999-min penalty for now.")
         T1 = np.nan_to_num(T1, nan=999.0)
         T2 = np.nan_to_num(T2, nan=999.0)
@@ -476,8 +493,15 @@ def main():
     groups = geo["groups"]
     issy = geo["issy"]
     N = len(groups)
-    if N != 63:
-        sys.exit(f"Expected 63 groups, got {N}. Fix data/geocoded.json first.")
+    if N % 3 != 0:
+        sys.exit(f"Got {N} pairs. The three courses need three equal rings, so the "
+                 f"pair count must be divisible by 3. Fix data/geocoded.json first.")
+    if (N // 3) % 2 == 0:
+        sys.exit(f"Got {N} pairs -> rings of {N // 3}. The ring size must be ODD so "
+                 f"that 2 is invertible mod {N // 3} and 'no pair meets twice' holds "
+                 f"(see the module docstring). Use an odd multiple of 3 - e.g. "
+                 f"{N - 3} or {N + 3} pairs. Fix data/geocoded.json first.")
+    set_ring_size(N)
 
     trv, T1, T2, walk, I, mode1, mode2, issy_modes = load_travel(N)
     maps = build_index_maps()
@@ -591,8 +615,8 @@ def main():
     assert all(h == 1 for h in hosts), "some pair hosts more or less than once"
     for course in COURSES:
         assert sorted(m for tb in tables[course] for m in tb["members"]) == list(range(N))
-    print(f"\n  verified: 63 pairs x 3 courses, 21 tables each, every pair hosts once, "
-          f"{len(seen)} distinct encounters, 0 repeats")
+    print(f"\n  verified: {N} pairs x 3 courses, {N_RING} tables each, every pair hosts "
+          f"once, {len(seen)} distinct encounters, 0 repeats")
 
     # ---------------------------------------------------------------- routes
     where = {c: {} for c in COURSES}
@@ -627,7 +651,7 @@ def main():
         host_arrive_min = (h2s if host_course == "starter"
                            else (l1 or 0.0) if host_course == "main"
                            else (l2 or 0.0))
-        pi = (0 if i in pos[0] else 21 if i in pos[1] else 42)
+        pi = (0 if i in pos[0] else N_RING if i in pos[1] else 2 * N_RING)
         pi += pos[0].get(i, pos[1].get(i, pos[2].get(i, 0)))
         routes.append({
             "group": idx2gid[i],

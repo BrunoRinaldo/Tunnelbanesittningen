@@ -13,6 +13,60 @@ alternerad) plus simulated annealing ovanpå för de icke-linjära straffen.
 
 ---
 
+## 0. Indata: deltagarlistan
+
+Du lämnar in **en Excel-fil** som ser ut som `data/Grupper.xlsx` – den råa
+exporten från anmälningsformuläret, en rad per **par**. `import_participants.py`
+läser den och skriver `data/participants.json`, som resten av pipelinen använder:
+
+```bash
+python3 import_participants.py               # läser data/Grupper.xlsx
+python3 import_participants.py svar.xlsx     # eller valfri sökväg
+```
+
+`run.py` kör importen automatiskt när `data/participants.json` saknas, eller när
+du kör `python3 run.py --participants svar.xlsx`.
+
+### Så ska kalkylbladet se ut
+
+Första raden är rubriker. En rad per par därefter. Kolumnordningen spelar ingen
+roll och rubrikernas versaler/mellanslag på slutet ignoreras. Extra kolumner
+(`Tidstämpel`, `Övrigt`) lämnas kvar orörda – de läses inte.
+
+| Kolumn | Krav | Format |
+|---|---|---|
+| `Grupp-ID` | obligatoriskt | heltal, unika och sammanhängande från 1. Används som gruppnummer rakt igenom (kartan, meddelanden, xlsx) |
+| `Namn 1`, `Namn 2` | obligatoriskt | de två personerna i paret, ett namn i varje cell |
+| `Adress` | obligatoriskt | fritext, precis som paret skrev den. Stavfel, saknad kommun och tvetydiga gator rättas i `addresses.py` (`MANUAL_FIXES`), inte i kalkylbladet |
+| `Telefonnummer 1`, `Telefonnummer 2` | obligatoriskt | svenskt format, t.ex. `072-444 50 95`. `export.py` normaliserar till `+46` för SMS-gatewayen |
+| `Mailadress` | obligatoriskt | en adress för paret |
+| `Allergier` | frivilligt | fritext. Tom = inga allergier |
+| `Alkoholpreferenser` | frivilligt | fritext. Tom = paret vill ha alkohol (se `ALCOHOL_DEFAULT` i `config.py`). En ensam siffra från en formulärskala räknas som tom |
+
+Antal par: den här sittningen är gjord för **63 par (126 personer)**, men koden
+räknar ringstorleken från antalet. Kravet är att antalet par är en **udda
+multipel av 3** – …, 51, 57, **63**, 69, 75, … Då blir det tre lika stora ringar
+med udda storlek (`N/3`), vilket krävs för att "inget par möts två gånger" ska
+hålla (§6). `import_participants.py` varnar om antalet inte går jämnt upp i tre
+ringar eller om ringstorleken blir jämn; `solve.py` avbryter i samma lägen.
+
+`import_participants.py` avbryter med radnummer om en obligatorisk cell är tom,
+ett `Grupp-ID` inte är ett heltal eller ett `Grupp-ID` förekommer två gånger.
+Namn/adresser trimmas på blanksteg (inklusive `\xa0`). En befintlig
+`data/participants.json` kopieras till `participants.json.bak` innan den skrivs
+över.
+
+### Vad pipelinen faktiskt läser
+
+`data/participants.json` – en JSON-array med ett objekt per par, fälten
+`group_id` (heltal), `name1`, `name2`, `address_raw`, `phone1`, `phone2`,
+`email`, `allergies`, `alkoholpreferenser` (resten är strängar, tom sträng när
+inget angavs). Du kan handredigera den direkt om du hellre vill. `data/*.xlsx`,
+`participants.json` och `participants.csv` är gitignorerade – de innehåller
+personuppgifter och stannar lokalt.
+
+---
+
 ## 1. Nyckel och localhost
 
 Kartan körs lokalt på **http://localhost:8000** (`serve.py`).
@@ -92,13 +146,18 @@ nyckelstruktur, så omkörningar och redan hämtade delmatriser kostar noll.
 python3 -m pip install openpyxl numpy scipy   # om de saknas
 cp .env.example .env                           # fyll i nycklarna
 
+python3 import_participants.py Grupper.xlsx     # deltagarlistan -> data/participants.json (§0)
 python3 run.py --dry     # ingen API-nyckel: OpenStreetMap-geokodning + fågelvägsrestider
 python3 run.py           # riktiga Google-restider (hämtar hela 63×63, kräver --yes internt)
 python3 serve.py         # kartan på http://localhost:8000
 ```
 
-Stegen var för sig: `geocode.py`, `travel.py --yes`, `solve.py --calibrate`,
-`solve.py`, `export.py`. `solve.py` skriver ut en före/efter-tabell (medel, std,
+`run.py` kör importsteget åt dig när `data/participants.json` saknas, eller med
+`python3 run.py --participants Grupper.xlsx`.
+
+Stegen var för sig: `import_participants.py`, `geocode.py`, `travel.py --yes`,
+`solve.py --calibrate`, `solve.py`, `export.py`. `solve.py` skriver ut en
+före/efter-tabell (medel, std,
 p50, p90, max, längsta etapp, etapper över `LEG_CAP`, längsta värdetapp,
 värdar över `HOST_ARRIVE_CAP`, ringordningsbrott).
 
@@ -175,6 +234,12 @@ B_r(x) = { p0[x], p1[x+r], p2[2x+r] },   x ∈ Z₂₁
 Eftersom 2 är inverterbart mod 21 (2·11 = 22 ≡ 1) är `2x+r` en bijektion, så
 varje rätt är en perfekt partition av alla 63 par i 21 bord om tre.
 
+Generellt: med `N` par blir ringstorleken `R = N/3`, och beviset nedan kräver att
+`2x+r` är en bijektion i Z_R – alltså att 2 är inverterbart mod `R`, dvs att `R`
+är udda. Därför måste `N` vara en udda multipel av 3 (§0). `solve.py` räknar `R`
+och `2⁻¹ mod R` ur antalet par; en jämn `R` skulle låta två par mötas två
+gånger och avvisas därför.
+
 Två par från olika ringar hamnar vid samma bord precis när en kongruens håller:
 
 ```
@@ -185,7 +250,8 @@ p1[y] & p2[z]  ⟺  r = 2y − z
 
 Var och en har exakt **en** lösning i Z₂₁, och bara r = 0, 1, 2 spelas. Alltså
 träffas två par högst en gång. Par inom samma ring delar aldrig bord alls.
-189 distinkta möten, noll upprepningar – oavsett hur paren numreras.
+`3N` distinkta möten (189 vid 63 par), noll upprepningar – oavsett hur paren
+numreras.
 
 Det lämnar 21!³ omnumreringar **per** ringtillsättning som alla uppfyller
 villkoren. Tillsammans med det fria valet av vilka 21 par som bemannar varje

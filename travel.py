@@ -5,13 +5,14 @@ the deadline in config.py. Everything is cached in cache/travel.json keyed by
 (origin, destination, mode, arrival) so re-runs are free.
 
 Ring membership is now a solver decision variable, so any pair can end up next
-to any other pair and the FULL 63x63 matrix is needed:
+to any other pair and the FULL NxN matrix is needed (N = pair count, 63 for this
+event):
 
-    walking            one 63x63 matrix, time-independent, reused for both
+    walking            one NxN matrix, time-independent, reused for both
                        inter-home legs
-    transit  18:30     63x63, arrival = ARRIVE_MAIN   (leg starter -> main)
-    transit  20:30     63x63, arrival = ARRIVE_DESSERT (leg main -> dessert)
-    everyone -> Issy   63 elements, arrival = ARRIVE_AFTERPARTY (leg 3)
+    transit  18:30     NxN, arrival = ARRIVE_MAIN   (leg starter -> main)
+    transit  20:30     NxN, arrival = ARRIVE_DESSERT (leg main -> dessert)
+    everyone -> Issy   N elements, arrival = ARRIVE_AFTERPARTY (leg 3)
 
 Pruning: the transit call is skipped for any pair whose walk time is already
 <= TRANSIT_SKIP_MIN (config.py, default 12 min). Transit cannot beat that once
@@ -244,10 +245,11 @@ def main():
     total = len(walk_need) + len(tr_main_need) + len(tr_dess_need) + len(issy_need)
     total_hi = len(walk_need) + len(tr_main_hi) + len(tr_dess_hi) + len(issy_need)
     est_usd = total / 1000.0 * USD_PER_1000_ELEMENTS
-    print("Full 63x63 travel matrix - elements to fetch (not already cached):")
-    print(f"    walking 63x63              {len(walk_need):5d}")
-    print(f"    transit 63x63 @ {config.ARRIVE_MAIN}       {len(tr_main_need):5d}  (est. after walk <= {config.TRANSIT_SKIP_MIN} min pruning)")
-    print(f"    transit 63x63 @ {config.ARRIVE_DESSERT}       {len(tr_dess_need):5d}  (same pruning)")
+    n = len(pts)
+    print(f"Full {n}x{n} travel matrix - elements to fetch (not already cached):")
+    print(f"    walking {n}x{n}              {len(walk_need):5d}")
+    print(f"    transit {n}x{n} @ {config.ARRIVE_MAIN}       {len(tr_main_need):5d}  (est. after walk <= {config.TRANSIT_SKIP_MIN} min pruning)")
+    print(f"    transit {n}x{n} @ {config.ARRIVE_DESSERT}       {len(tr_dess_need):5d}  (same pruning)")
     print(f"    everyone -> Issy           {len(issy_need):5d}")
     print(f"    -------------------------------")
     print(f"    total (estimate)           {total:5d}   ~ USD {est_usd:.2f}")

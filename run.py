@@ -6,12 +6,24 @@
     python3 run.py --dry        # no API calls: Nominatim geocoding + straight-line times
     python3 run.py --haversine  # real geocode cache, straight-line travel times
 
+    python3 run.py --participants svar.xlsx
+                                # import that spreadsheet to data/participants.json
+                                # first (format: README section 0). Without the
+                                # flag, the import step runs only when
+                                # data/participants.json is missing.
+
 travel.py refuses to spend without --yes; run.py passes it through on a real run.
 """
-import importlib.util, subprocess, sys
+import importlib.util, os, subprocess, sys
 
 DRY = "--dry" in sys.argv
 HAVERSINE = "--haversine" in sys.argv or DRY
+
+HERE = os.path.dirname(os.path.abspath(__file__))
+PARTICIPANTS = None
+if "--participants" in sys.argv:
+    i = sys.argv.index("--participants")
+    PARTICIPANTS = sys.argv[i + 1] if i + 1 < len(sys.argv) else os.path.join(HERE, "data", "Grupper.xlsx")
 
 missing = [m for m in ("numpy", "openpyxl", "certifi") if not importlib.util.find_spec(m)]
 if missing:
@@ -26,6 +38,11 @@ def step(title, cmd):
     if r.returncode != 0:
         sys.exit(f"\nfailed at: {title}")
 
+
+PARTS_JSON = os.path.join(HERE, "data", "participants.json")
+if PARTICIPANTS or not os.path.exists(PARTS_JSON):
+    src = PARTICIPANTS or os.path.join(HERE, "data", "Grupper.xlsx")
+    step("0/5  Deltagarlista", ["import_participants.py", src])
 
 step("1/5  Geocoding", ["geocode.py"] + (["--fallback"] if DRY else []))
 step("2/5  Restider", ["travel.py"] + (["--haversine"] if HAVERSINE else ["--yes"]))

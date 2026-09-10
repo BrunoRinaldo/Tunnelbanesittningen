@@ -11,4 +11,6 @@ __pycache__/
 # participant PII - keep local only
 data/participants.csv
 data/participants.json
+data/participants.json.bak
 data/Grupper.xlsx
+data/*.xlsx
