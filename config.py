@@ -1,0 +1,138 @@
+"""Configuration for the Tunnelbanesittning planner."""
+import os
+
+# ---------------------------------------------------------------- API keys
+# Server key: used by geocode.py + travel.py (Geocoding API, Distance Matrix API).
+#   -> must NOT have an HTTP-referrer restriction. Restrict by API instead
+#      (or by your IP if you have a static one).
+# Browser key: used by the web UI (Maps JavaScript API).
+#   -> restrict by HTTP referrer to  http://localhost:8000/*  and  http://127.0.0.1:8000/*
+# Put them in a file called .env next to this one, or export as env vars.
+GOOGLE_SERVER_KEY = os.environ.get("GOOGLE_SERVER_KEY", "")
+GOOGLE_BROWSER_KEY = os.environ.get("GOOGLE_BROWSER_KEY", "")
+
+# ---------------------------------------------------------------- event
+EVENT_DATE = "2026-11-14"          # YYYY-MM-DD, used for transit departure/arrival times
+TIMEZONE = "Europe/Stockholm"
+
+AFTERPARTY_NAME = "Issy"
+AFTERPARTY_ADDRESS = "Brinellvägen 23, 114 28 Stockholm, Sweden"
+
+# Arrival deadlines (local time). Travel is costed as "arrive by".
+ARRIVE_STARTER = "17:00"           # informational only
+ARRIVE_MAIN = "18:30"
+ARRIVE_DESSERT = "20:30"
+ARRIVE_AFTERPARTY = "22:00"
+
+# ---------------------------------------------------------------- messaging (export.py)
+# Deadline shown in the "dubbelkolla info" SMS for guests to report errors.
+REACHOUT_DATE = "a"               # YYYY-MM-DD
+# No stated alcohol preference means the pair wants alcohol - that is the default.
+ALCOHOL_DEFAULT = "Alkohol!!!"
+
+# ---------------------------------------------------------------- routing
+# Travel cost = min(walking, transit) for each leg.
+MODES = ["walking", "transit"]
+
+# travel.py: with free ring membership any pair can end up next to any other, so
+# the full 63x63 matrix is fetched. Walking is time-independent (one matrix,
+# reused for both inter-home legs); transit is fetched for arrival 18:30 and
+# 20:30. Skip the transit call for a pair whose walk is already this short -
+# transit can never beat it once waiting time is counted.
+TRANSIT_SKIP_MIN = 12
+
+# ---------------------------------------------------------------- solver
+SEED = 20261114
+# The exact linear layer (linear_sum_assignment, alternated over the rings) now
+# does the heavy lifting on the separable part, so the annealing on top - which
+# only has to chase the non-linear terms - needs fewer iterations than the old
+# pure-anneal search. 1.0M/8 is ~2 min; the old 1.6M was for a weaker search.
+ANNEAL_ITERS = 1_000_000
+RESTARTS = 8
+
+# --- ring membership -------------------------------------------------------
+# Ring is now a decision variable: any pair may land in any ring, but each ring
+# still holds exactly 21 pairs. Instead of the hard 21/21/21 split by travel
+# time to Issy there is a soft pull:
+#     ring_cost = ALPHA * sum_i c[ring(i)] * issy_min(i),   c = (-1, 0, +1)
+# so pairs far from Issy are pushed toward the starter ring (ring 0) and pairs
+# close to Issy toward the dessert ring (ring 2).
+# Measured sweep (haversine data; "outside" = pairs not in the ring their Issy
+# rank would give). ring_cost is an absolute magnitude (~ALPHA*350), so a large
+# ALPHA swamps the travel terms - keep it a nudge, and read the reported
+# violation count as the visible half of the trade-off:
+#   ALPHA = 0      -> ring chosen purely for travel time
+#   ALPHA ~ 1      -> ~12 outside, mean/tail fully optimised   <- default
+#   ALPHA ~ 8      -> ~6 outside, but ring_cost starts dominating, worse max
+#   ALPHA ~ 50     -> ~2 outside
+#   ALPHA >= 500   -> 0 outside, i.e. exactly the old hard 21/21/21 split
+ALPHA = 1.0
+
+# --- objective (all terms in minutes; std is gone on purpose) -------------
+# T_i = leg1 + leg2 + leg3   (starter->main, main->dessert, dessert->Issy)
+#   cost = W_MEAN * mean(T)
+#        + W_TAIL * sum_i max(0, T_i - T_TARGET)^2
+#        + W_MAX  * max(T)
+#        + W_LEG  * sum_legs max(0, leg - LEG_CAP)^2
+#        + ring_cost
+W_MEAN = 1.0
+W_TAIL = 0.06
+W_MAX = 0.6
+W_LEG = 0.10
+
+# Longest single leg before it starts eating the meal (slots are 90/120/90 min).
+LEG_CAP = 40.0
+
+# --- host arrival cap ----------------------------------------------------
+# A pair that hosts the main or the dessert has to get from the previous
+# table home and then cook before the guests arrive. Cap that one arrival
+# leg so they have time in the kitchen. The starter host is already home, so
+# this only bites ring 1 (arrive from starter) and ring 2 (arrive from main).
+#     host_cost = W_HOST * sum_hosts max(0, host_arrival_leg - HOST_ARRIVE_CAP)^2
+# W_HOST is deliberately large - this is meant as a near-hard constraint. On
+# top of the penalty the annealer refuses any move that raises the number of
+# hosts over the cap, and the exact linear layer folds the same term into its
+# cost matrix (it is separable there with the other two rings fixed). The
+# solver prints "hosts over cap"; that number must be 0 before you send
+# anything out - raise W_HOST or re-run with a new SEED if it is not.
+HOST_ARRIVE_CAP = 30.0
+W_HOST = 8.0
+
+# T_TARGET is calibrated, not guessed: `python3 solve.py --calibrate` first
+# minimises mean(T) alone, then writes T_TARGET = that mean * (1 + SLACK) to
+# data/calibration.json. The value below is only the fallback when that file is
+# absent.
+SLACK = 0.12
+T_TARGET = 70.0
+
+# Old objective, kept for the before/after baseline only:
+#     mean + W_STD_OLD*std + W_MAX_OLD*max
+W_STD_OLD = 2.5
+W_MAX_OLD = 0.6
+
+# ---------------------------------------------------------------- server
+PORT = 8000
+
+# ---------------------------------------------------------------- .env loader
+def _load_env():
+    global GOOGLE_SERVER_KEY, GOOGLE_BROWSER_KEY
+    p = os.path.join(os.path.dirname(os.path.abspath(__file__)), ".env")
+    if not os.path.exists(p):
+        return
+    for line in open(p, encoding="utf-8"):
+        line = line.strip()
+        if not line or line.startswith("#") or "=" not in line:
+            continue
+        k, v = line.split("=", 1)
+        k, v = k.strip(), v.strip().strip('"').strip("'")
+        if k == "GOOGLE_SERVER_KEY" and not GOOGLE_SERVER_KEY:
+            GOOGLE_SERVER_KEY = v
+        elif k == "GOOGLE_BROWSER_KEY" and not GOOGLE_BROWSER_KEY:
+            GOOGLE_BROWSER_KEY = v
+        elif k == "GOOGLE_API_KEY":
+            if not GOOGLE_SERVER_KEY:
+                GOOGLE_SERVER_KEY = v
+            if not GOOGLE_BROWSER_KEY:
+                GOOGLE_BROWSER_KEY = v
+
+_load_env()

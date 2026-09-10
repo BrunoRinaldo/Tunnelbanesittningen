@@ -1,0 +1,6 @@
+{
+ "mean_only": 43.98382268337528,
+ "slack": 0.12,
+ "T_TARGET": 49.261881405380315,
+ "source": "haversine"
+}

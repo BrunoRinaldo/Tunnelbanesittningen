@@ -1,0 +1,378 @@
+<!doctype html>
+<html lang="sv">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Tunnelbanesittning – ruttkarta</title>
+<style>
+  :root{
+    --starter:#E8743B; --main:#2E86C1; --dessert:#7D5BA6; --issy:#0E9F6E;
+    --bg:#0f1419; --panel:#161c23; --line:#26303a; --txt:#e6edf3; --dim:#8b98a5;
+  }
+  *{box-sizing:border-box}
+  html,body{height:100%;margin:0}
+  body{font:13px/1.5 -apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;
+       background:var(--bg);color:var(--txt);display:flex;overflow:hidden}
+  #side{width:380px;min-width:380px;height:100vh;overflow-y:auto;background:var(--panel);
+        border-right:1px solid var(--line)}
+  #map{flex:1;height:100vh}
+  h1{font-size:15px;margin:0 0 2px;letter-spacing:.2px}
+  .sub{color:var(--dim);font-size:11px}
+  .pad{padding:14px 16px;border-bottom:1px solid var(--line)}
+  .pad.top{position:sticky;top:0;z-index:3;background:var(--panel)}
+  .stats{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-top:10px}
+  .stat{background:#1d242c;border:1px solid var(--line);border-radius:6px;padding:7px 8px}
+  .stat b{display:block;font-size:15px;font-weight:600}
+  .stat span{color:var(--dim);font-size:10px;text-transform:uppercase;letter-spacing:.4px}
+  .legend{display:flex;gap:12px;flex-wrap:wrap;margin-top:10px;font-size:11px}
+  .legend i{width:9px;height:9px;border-radius:50%;display:inline-block;margin-right:5px}
+  .legend .clk{cursor:pointer;border-radius:4px;padding:1px 5px;margin:-1px -5px}
+  .legend .clk:hover{background:#1d242c}
+  .legend .clk.on{background:#22303d;outline:1px solid #3d81b8}
+  #legPanel{display:none}
+  #legPanel.show{display:block}
+  .lg5{margin-top:8px}
+  .lg5 .r{display:flex;gap:8px;align-items:baseline;padding:6px;border-radius:6px;cursor:pointer;
+    font-variant-numeric:tabular-nums}
+  .lg5 .r:hover{background:#1d242c}
+  .lg5 .r .mn{width:52px;font-weight:600}
+  .lg5 .r .gg{width:20px;text-align:right;color:var(--dim)}
+  .lg5 .r .nn{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  .lg5 .r .md{color:var(--dim);font-size:10.5px;flex:none}
+  input[type=search]{width:100%;padding:8px 10px;border-radius:6px;border:1px solid var(--line);
+    background:#1d242c;color:var(--txt);font-size:13px;outline:none}
+  input[type=search]:focus{border-color:#3d81b8}
+  #list{padding:6px 8px 40px}
+  .row{padding:7px 8px;border-radius:6px;cursor:pointer;display:flex;gap:9px;align-items:baseline}
+  .row:hover{background:#1d242c}
+  .row.on{background:#22303d;outline:1px solid #3d81b8}
+  .gid{font-variant-numeric:tabular-nums;color:var(--dim);width:22px;text-align:right;flex:none}
+  .nm{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  .dot{width:8px;height:8px;border-radius:50%;flex:none;align-self:center}
+  .mins{color:var(--dim);font-size:11px;font-variant-numeric:tabular-nums;flex:none}
+  #detail{display:none}
+  #detail.show{display:block}
+  .stop{display:grid;grid-template-columns:14px 1fr;gap:10px;padding:9px 0;border-bottom:1px solid var(--line)}
+  .stop:last-child{border-bottom:0}
+  .bul{width:12px;height:12px;border-radius:50%;margin-top:3px;border:2px solid var(--panel)}
+  .stop .t{font-weight:600}
+  .stop .a{color:var(--dim);font-size:12px}
+  .stop .w{font-size:11.5px;margin-top:3px;color:#b9c6d3}
+  .leg{color:var(--dim);font-size:11px;margin:2px 0 0 24px;padding-left:10px;border-left:2px dashed #37424e}
+  .tag{display:inline-block;background:#243040;border:1px solid var(--line);border-radius:4px;
+       padding:1px 6px;font-size:10.5px;color:#a9bccd;margin-right:4px}
+  button{background:#22303d;color:var(--txt);border:1px solid var(--line);border-radius:6px;
+    padding:6px 10px;font-size:12px;cursor:pointer}
+  button:hover{background:#2b3b4b}
+  button.p{background:#1c5f8f;border-color:#2a7ab5}
+  .btns{display:flex;gap:6px;margin-top:10px;flex-wrap:wrap}
+  .warn{color:#f0b429;font-size:11.5px;margin-top:8px}
+  @media(max-width:820px){body{flex-direction:column}#side{width:100%;min-width:0;height:46vh}#map{height:54vh}}
+</style>
+</head>
+<body>
+<div id="side">
+  <div class="pad top">
+    <h1>Tunnelbanesittning</h1>
+    <div class="sub" id="meta">läser in…</div>
+    <div class="stats" id="stats"></div>
+    <div class="legend">
+      <span><i style="background:var(--starter)"></i>Förrätt</span>
+      <span class="clk" data-leg="0" onclick="showLeg(0)"><i style="background:var(--main)"></i>Varmrätt</span>
+      <span class="clk" data-leg="1" onclick="showLeg(1)"><i style="background:var(--dessert)"></i>Efterrätt</span>
+      <span class="clk" data-leg="2" onclick="showLeg(2)"><i style="background:var(--issy)"></i>Issy</span>
+    </div>
+    <div class="sub" style="margin-top:6px;font-size:10px">Tryck på en rätt för en sammanställning av resorna dit</div>
+  </div>
+
+  <div class="pad" id="legPanel">
+    <div style="display:flex;justify-content:space-between;align-items:baseline">
+      <div><b id="lgTitle"></b><div class="sub" id="lgSub"></div></div>
+      <button onclick="clearLeg()">Rensa</button>
+    </div>
+    <div class="stats" id="lgStats"></div>
+    <div class="sub" style="margin-top:12px">5 längsta resorna</div>
+    <div class="lg5" id="lgTop"></div>
+  </div>
+
+  <div class="pad" id="detail">
+    <div style="display:flex;justify-content:space-between;align-items:baseline">
+      <div><b id="dTitle"></b><div class="sub" id="dSub"></div></div>
+      <button onclick="clearSel()">Rensa</button>
+    </div>
+    <div id="dStops" style="margin-top:10px"></div>
+    <div class="btns">
+      <button class="p" id="realBtn" onclick="realRoute()">Visa verklig rutt</button>
+      <button onclick="copyMsg(this)">Kopiera SMS</button>
+    </div>
+    <div class="warn" id="dWarn"></div>
+  </div>
+
+  <div class="pad"><input type="search" id="q" placeholder="Sök grupp, namn eller adress…"></div>
+  <div id="list"></div>
+</div>
+<div id="map"></div>
+
+<script src="config.js"></script>
+<script>
+const C={starter:'#E8743B',main:'#2E86C1',dessert:'#7D5BA6',issy:'#0E9F6E'};
+const SV={starter:'Förrätt',main:'Varmrätt',dessert:'Efterrätt'};
+let D=null,map=null,markers={},issyMarker=null,poly=[],sel=null,dirRenderers=[];
+
+function pin(color,label){
+  return {
+    path:'M 0,0 C -2,-20 -10,-22 -10,-30 A 10,10 0 1,1 10,-30 C 10,-22 2,-20 0,0 z',
+    fillColor:color,fillOpacity:1,strokeColor:'#0b0f13',strokeWeight:1.4,scale:0.85,
+    labelOrigin:new google.maps.Point(0,-30)
+  };
+}
+
+async function init(){
+  D = await (await fetch('data.json')).json();
+  const issy = D.meta.issy;
+  map = new google.maps.Map(document.getElementById('map'),{
+    center:{lat:issy.lat,lng:issy.lng},zoom:12,mapTypeControl:false,streetViewControl:false,
+    backgroundColor:'#0f1419',
+    styles:[
+      {elementType:'geometry',stylers:[{color:'#1d2429'}]},
+      {elementType:'labels.text.stroke',stylers:[{color:'#1d2429'}]},
+      {elementType:'labels.text.fill',stylers:[{color:'#8b98a5'}]},
+      {featureType:'poi',stylers:[{visibility:'off'}]},
+      {featureType:'transit',elementType:'labels.icon',stylers:[{visibility:'off'}]},
+      {featureType:'transit.line',elementType:'geometry',stylers:[{color:'#2b343b'}]},
+      {featureType:'road',elementType:'geometry',stylers:[{color:'#2a3238'}]},
+      {featureType:'road',elementType:'labels',stylers:[{visibility:'off'}]},
+      {featureType:'road.arterial',elementType:'labels',stylers:[{visibility:'simplified'}]},
+      {featureType:'water',elementType:'geometry',stylers:[{color:'#14202b'}]},
+      {featureType:'administrative',elementType:'geometry',stylers:[{color:'#3a444d'}]}
+    ]
+  });
+  map.addListener('click',clearSel);
+
+  const gmap={},rmap={};
+  D.groups.forEach(g=>gmap[g.group_id]=g);
+  D.routes.forEach(r=>rmap[r.group]=r);
+  D.gmap=gmap; D.rmap=rmap;
+
+  D.routes.forEach(r=>{
+    const g=gmap[r.group];
+    const m=new google.maps.Marker({
+      position:{lat:g.lat,lng:g.lng},map,
+      icon:pin(C[r.hosts]),title:`${r.group}. ${g.name1} & ${g.name2} – ${SV[r.hosts]}`,
+      label:{text:String(r.group),color:'#fff',fontSize:'10px',fontWeight:'700'},
+      zIndex:10
+    });
+    m.addListener('click',()=>select(r.group));
+    markers[r.group]=m;
+  });
+
+  issyMarker=new google.maps.Marker({
+    position:{lat:issy.lat,lng:issy.lng},map,zIndex:50,
+    icon:{path:google.maps.SymbolPath.CIRCLE,scale:11,fillColor:C.issy,fillOpacity:1,
+          strokeColor:'#fff',strokeWeight:2},
+    title:'Issy – Brinellvägen 23 (efterfest 22:00)',
+    label:{text:'IS',color:'#062a1e',fontSize:'9px',fontWeight:'800'}
+  });
+
+  const s=D.meta.stats;
+  document.getElementById('meta').textContent =
+    `${D.meta.date} · ${D.groups.length} par · ${D.groups.length*2} personer · restider: ${D.meta.travel_source}`;
+  document.getElementById('stats').innerHTML =
+    `<div class="stat"><b>${s.mean.toFixed(0)} min</b><span>medelrestid</span></div>
+     <div class="stat"><b>±${s.sd.toFixed(1)}</b><span>std.avv.</span></div>
+     <div class="stat"><b>0</b><span>möten 2 ggr</span></div>`;
+
+  renderList('');
+  document.getElementById('q').addEventListener('input',e=>renderList(e.target.value));
+  window.addEventListener('keydown',e=>{if(e.key==='Escape')clearSel()});
+}
+
+function renderList(q){
+  q=q.toLowerCase().trim();
+  const el=document.getElementById('list');
+  el.innerHTML='';
+  D.routes.slice().sort((a,b)=>a.group-b.group).forEach(r=>{
+    const g=D.gmap[r.group];
+    const hay=`${r.group} ${g.name1} ${g.name2} ${g.formatted||g.address}`.toLowerCase();
+    if(q && !hay.includes(q)) return;
+    const d=document.createElement('div');
+    d.className='row'+(sel===r.group?' on':'');
+    d.dataset.g=r.group;
+    d.innerHTML=`<span class="dot" style="background:${C[r.hosts]}"></span>
+      <span class="gid">${r.group}</span>
+      <span class="nm">${g.name1} & ${g.name2}</span>
+      <span class="mins">${Math.round(r.total_min)}′</span>`;
+    d.onclick=()=>select(r.group);
+    el.appendChild(d);
+  });
+}
+
+function clearRoute(){
+  poly.forEach(p=>p.setMap(null)); poly=[];
+  dirRenderers.forEach(r=>r.setMap(null)); dirRenderers=[];
+}
+
+function clearSel(){
+  sel=null; clearRoute();
+  Object.values(markers).forEach(m=>{m.setOpacity(1);m.setZIndex(10)});
+  issyMarker.setOpacity(1);
+  document.getElementById('detail').classList.remove('show');
+  document.querySelectorAll('.row.on').forEach(r=>r.classList.remove('on'));
+  clearLeg();
+}
+
+// leg 0 = Förrätt->Varmrätt, 1 = Varmrätt->Efterrätt, 2 = Efterrätt->Issy
+const LEG_LABEL=['Förrätt → Varmrätt','Varmrätt → Efterrätt','Efterrätt → Issy'];
+
+function clearLeg(){
+  document.getElementById('legPanel').classList.remove('show');
+  document.querySelectorAll('.legend .clk.on').forEach(e=>e.classList.remove('on'));
+}
+
+function showLeg(li){
+  clearSel();
+  const rows=D.routes.map(r=>({g:r.group,min:r.legs[li].min||0,mode:r.legs[li].mode}))
+                     .sort((a,b)=>b.min-a.min);
+  const xs=rows.map(o=>o.min), n=xs.length;
+  const mean=xs.reduce((s,x)=>s+x,0)/n;
+  const sd=Math.sqrt(xs.reduce((s,x)=>s+(x-mean)**2,0)/n);
+  const asc=xs.slice().sort((a,b)=>a-b);
+  const med=n%2?asc[(n-1)/2]:(asc[n/2-1]+asc[n/2])/2;
+
+  document.getElementById('legPanel').classList.add('show');
+  document.getElementById('lgTitle').textContent=LEG_LABEL[li];
+  document.getElementById('lgSub').textContent=`${n} resor · källa: ${D.meta.travel_source}`;
+  document.getElementById('lgStats').innerHTML=
+    `<div class="stat"><b>${mean.toFixed(1)} min</b><span>medelrestid</span></div>
+     <div class="stat"><b>±${sd.toFixed(1)}</b><span>std.avv.</span></div>
+     <div class="stat"><b>${med.toFixed(1)}</b><span>median</span></div>`;
+  document.getElementById('lgTop').innerHTML=rows.slice(0,5).map(o=>{
+    const g=D.gmap[o.g];
+    return `<div class="r" onclick="select(${o.g})">
+      <span class="mn">${o.min.toFixed(1)} min</span>
+      <span class="gg">${o.g}</span>
+      <span class="nn">${g.name1} & ${g.name2}</span>
+      <span class="md">${o.mode==='walking'?'promenad':'kollektivt'}</span>
+    </div>`;
+  }).join('');
+  document.querySelectorAll('.legend .clk').forEach(e=>e.classList.toggle('on',+e.dataset.leg===li));
+}
+
+function select(gid){
+  clearRoute();
+  sel=gid;
+  const r=D.rmap[gid], g=D.gmap[gid];
+  const stops=r.stops.map(s=>({...s,g:D.gmap[s.host]}));
+  const path=[...stops.map(s=>({lat:s.g.lat,lng:s.g.lng})),
+              {lat:D.meta.issy.lat,lng:D.meta.issy.lng}];
+  const lit=new Set(stops.map(s=>s.host));
+
+  Object.entries(markers).forEach(([k,m])=>{
+    const on=lit.has(+k);
+    m.setOpacity(on?1:0.35);
+    m.setZIndex(on?100:5);
+  });
+  issyMarker.setOpacity(1);
+
+  // dashed connector + one solid arrow per leg
+  for(let i=0;i<3;i++){
+    poly.push(new google.maps.Polyline({
+      map,path:[path[i],path[i+1]],geodesic:true,strokeOpacity:0,zIndex:80,
+      icons:[{icon:{path:'M 0,-1 0,1',strokeOpacity:.95,strokeWeight:3,
+              strokeColor:['#E8743B','#2E86C1','#7D5BA6'][i]},offset:'0',repeat:'11px'}]
+    }));
+    poly.push(new google.maps.Polyline({
+      map,path:[path[i],path[i+1]],geodesic:true,strokeOpacity:0,zIndex:81,
+      icons:[{icon:{path:google.maps.SymbolPath.FORWARD_CLOSED_ARROW,scale:3,
+              strokeColor:'#fff',fillColor:'#fff',fillOpacity:1,strokeWeight:1},offset:'55%'}]
+    }));
+  }
+  const b=new google.maps.LatLngBounds();
+  path.forEach(p=>b.extend(p));
+  map.fitBounds(b,{top:60,right:60,bottom:60,left:60});
+
+  // sidebar
+  document.getElementById('detail').classList.add('show');
+  document.getElementById('dTitle').textContent=`Grupp ${gid} · ${g.name1} & ${g.name2}`;
+  document.getElementById('dSub').innerHTML =
+    `<span class="tag" style="border-color:${C[r.hosts]};color:${C[r.hosts]}">Värd: ${SV[r.hosts]}</span>`+
+    `<span class="tag">total restid ${Math.round(r.total_min)} min</span>`;
+
+  let html='';
+  stops.forEach((s,i)=>{
+    const co=s.co.map(c=>`${D.gmap[c].name1} & ${D.gmap[c].name2}`).join(' · ');
+    html+=`<div class="stop">
+      <div class="bul" style="background:${C[s.course]}"></div>
+      <div>
+        <div class="t">${SV[s.course]} ${s.arrive} <span class="a">· hos grupp ${s.host}${s.host===gid?' (ni)':''}</span></div>
+        <div class="a">${(s.g.formatted||s.g.address).replace(/, Sweden$/,'')}</div>
+        <div class="w">med ${co}</div>
+      </div></div>`;
+    const L=r.legs[i];
+    html+=`<div class="leg">→ ${L.depart} · ${Math.round(L.min||0)} min · ${L.mode==='walking'?'promenad':'kollektivt'} → ${L.arrive}</div>`;
+  });
+  html+=`<div class="stop"><div class="bul" style="background:${C.issy}"></div>
+    <div><div class="t">Efterfest ${D.meta.arrive.afterparty} <span class="a">· Issy</span></div>
+    <div class="a">Brinellvägen 23</div></div></div>`;
+  document.getElementById('dStops').innerHTML=html;
+  document.getElementById('dWarn').textContent =
+    D.meta.travel_source==='haversine' ? 'Restider är uppskattade (fågelvägen) – kör travel.py med API-nyckel för riktiga tider.' : '';
+
+  document.querySelectorAll('.row').forEach(el=>el.classList.toggle('on',+el.dataset.g===gid));
+  const row=document.querySelector(`.row[data-g="${gid}"]`);
+  if(row) row.scrollIntoView({block:'nearest'});
+}
+
+function realRoute(){
+  if(!sel) return;
+  const r=D.rmap[sel];
+  const pts=[...r.stops.map(s=>D.gmap[s.host]),{lat:D.meta.issy.lat,lng:D.meta.issy.lng}];
+  const svc=new google.maps.DirectionsService();
+  poly.forEach(p=>p.setMap(null)); poly=[];
+  for(let i=0;i<3;i++){
+    const mode=(r.legs[i].mode||'').startsWith('walk')?'WALKING':'TRANSIT';
+    const rend=new google.maps.DirectionsRenderer({
+      map,suppressMarkers:true,preserveViewport:true,
+      polylineOptions:{strokeColor:['#E8743B','#2E86C1','#7D5BA6'][i],strokeWeight:5,strokeOpacity:.9}
+    });
+    dirRenderers.push(rend);
+    svc.route({origin:{lat:pts[i].lat,lng:pts[i].lng},destination:{lat:pts[i+1].lat,lng:pts[i+1].lng},
+      travelMode:mode,transitOptions:mode==='TRANSIT'?{arrivalTime:new Date(`${D.meta.date}T${r.legs[i].arrive}:00`)}:undefined},
+      (res,st)=>{ if(st==='OK') rend.setDirections(res);
+                  else document.getElementById('dWarn').textContent='Directions: '+st; });
+  }
+}
+
+function copyMsg(btn){
+  if(!sel) return;
+  const r=D.rmap[sel],g=D.gmap[sel];
+  const a=i=>(D.gmap[i].formatted||D.gmap[i].address).replace(/, Sweden$/,'');
+  const who=ids=>ids.map(i=>`${D.gmap[i].name1} + ${D.gmap[i].name2}`).join(' & ');
+  let t=`Tunnelbanesittning ${D.meta.date} – Grupp ${sel} (${g.name1} & ${g.name2})\n`;
+  t+=`NI ÄR VÄRDAR FÖR ${SV[r.hosts].toUpperCase()}EN hemma hos er (${a(sel)}).\n\n`;
+  r.stops.forEach((s,i)=>{
+    t+=`${SV[s.course].toUpperCase()} ${s.arrive} hos grupp ${s.host} – ${a(s.host)}\n`;
+    t+=`  Ni äter med: ${who(s.co)}\n`;
+    t+=`→ Gå/åk ${r.legs[i].depart}, framme ${r.legs[i].arrive} (${Math.round(r.legs[i].min||0)} min)\n\n`;
+  });
+  t+=`EFTERFEST ${D.meta.arrive.afterparty} – Issy, Brinellvägen 23\nTotal restid: ca ${Math.round(r.total_min)} min.`;
+  navigator.clipboard.writeText(t);
+  const o=btn.textContent; btn.textContent='Kopierat ✓';
+  setTimeout(()=>btn.textContent=o,1200);
+}
+window.initMap=init;
+</script>
+<script async id="gmaps"></script>
+<script>
+  const k=(window.TBS_CONFIG&&window.TBS_CONFIG.browserKey)||'';
+  if(!k){
+    document.getElementById('map').innerHTML=
+      '<div style="padding:40px;color:#f0b429;font:14px sans-serif">Ingen GOOGLE_BROWSER_KEY hittad.'+
+      '<br><br>Lägg den i <code>.env</code> och starta om <code>serve.py</code>.</div>';
+  }else{
+    document.getElementById('gmaps').src =
+      `https://maps.googleapis.com/maps/api/js?key=${k}&callback=initMap&language=sv&region=SE&libraries=geometry`;
+  }
+</script>
+</body>
+</html>

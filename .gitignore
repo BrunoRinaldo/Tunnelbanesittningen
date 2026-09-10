@@ -1,0 +1,9 @@
+# never commit your keys
+.env
+cache/
+data/geocoded.json
+data/travel.json
+data/schedule.json
+web/data.json
+out/
+__pycache__/
