@@ -7,3 +7,8 @@ data/schedule.json
 web/data.json
 out/
 __pycache__/
+
+# participant PII - keep local only
+data/participants.csv
+data/participants.json
+data/Grupper.xlsx
