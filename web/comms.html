@@ -1,0 +1,455 @@
+<!doctype html>
+<html lang="sv">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Tunnelbanesittning – kommunikation</title>
+<style>
+  :root{
+    --starter:#E8743B; --main:#2E86C1; --dessert:#7D5BA6; --issy:#0E9F6E;
+    --bg:#0f1419; --panel:#161c23; --card:#1a2129; --line:#26303a; --txt:#e6edf3; --dim:#8b98a5;
+    --warn:#f0b429; --bad:#e5534b; --ok:#0E9F6E;
+  }
+  *{box-sizing:border-box}
+  html,body{margin:0}
+  body{font:13px/1.5 -apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;
+       background:var(--bg);color:var(--txt)}
+  a{color:#6cb4e6}
+  header{position:sticky;top:0;z-index:5;background:var(--panel);border-bottom:1px solid var(--line);
+         padding:14px 20px}
+  header h1{font-size:15px;margin:0 0 2px;letter-spacing:.2px}
+  .sub{color:var(--dim);font-size:11px}
+  main{max-width:900px;margin:0 auto;padding:18px 16px 60px}
+  .banner{padding:10px 14px;border-radius:8px;font-size:12px;margin-bottom:16px}
+  .banner.warn{background:#2c2413;border:1px solid #4a3a12;color:var(--warn)}
+  .banner.bad{background:#2c1616;border:1px solid #4a1f1f;color:var(--bad)}
+  .card{background:var(--card);border:1px solid var(--line);border-radius:10px;
+        padding:16px 18px;margin-bottom:14px}
+  .card-top{display:flex;justify-content:space-between;align-items:baseline;flex-wrap:wrap;gap:6px}
+  .card-top h2{font-size:14.5px;margin:0}
+  .count{color:var(--dim);font-size:11.5px}
+  .badges{display:flex;gap:6px;flex-wrap:wrap;margin-top:8px}
+  .badge{border-radius:20px;padding:2px 9px;font-size:10.5px;font-variant-numeric:tabular-nums;
+         border:1px solid var(--line);color:var(--dim)}
+  .badge.sent{color:#6cb4e6;border-color:#274157}
+  .badge.delivered{color:var(--ok);border-color:#1f4a3a}
+  .badge.failed{color:var(--bad);border-color:#4a1f1f}
+  .badge.skipped{color:var(--warn);border-color:#4a3a12}
+  .tpl{margin-top:12px}
+  .tpl h3{font-size:11px;text-transform:uppercase;letter-spacing:.4px;color:var(--dim);margin:10px 0 4px}
+  pre{background:#10151b;border:1px solid var(--line);border-radius:6px;padding:10px 12px;
+      font:12px/1.5 ui-monospace,SFMono-Regular,Menlo,monospace;white-space:pre-wrap;word-break:break-word;
+      margin:0}
+  .tok{color:#e8a94b}
+  .btns{display:flex;gap:8px;margin-top:12px;flex-wrap:wrap}
+  button{background:#22303d;color:var(--txt);border:1px solid var(--line);border-radius:6px;
+    padding:7px 12px;font-size:12px;cursor:pointer}
+  button:hover{background:#2b3b4b}
+  button:disabled{opacity:.5;cursor:default}
+  button.p{background:#1c5f8f;border-color:#2a7ab5}
+  button.p:hover{background:#237bad}
+  button.danger{background:#5a2323;border-color:#7a2f2f}
+  button.danger:hover{background:#6e2b2b}
+  table{width:100%;border-collapse:collapse;margin-top:10px;font-size:12px}
+  th,td{text-align:left;padding:5px 8px;border-bottom:1px solid var(--line)}
+  th{color:var(--dim);font-weight:600;font-size:10.5px;text-transform:uppercase}
+  td.st{white-space:nowrap}
+  .dot{display:inline-block;width:7px;height:7px;border-radius:50%;margin-right:5px}
+  .dot.unsent{background:#3a444d}
+  .dot.sent{background:#6cb4e6}
+  .dot.delivered{background:var(--ok)}
+  .dot.failed{background:var(--bad)}
+  .dot.skipped{background:var(--warn)}
+  .warnbox{margin-top:12px;background:#20140f;border:1px solid #4a2c1f;border-radius:8px;padding:10px 12px}
+  .warnbox b{color:var(--warn);font-size:11.5px}
+  .warnbox .row{font-size:11.5px;padding:4px 0;border-bottom:1px solid #3a251b;color:#e8c9a0}
+  .warnbox .row:last-child{border-bottom:0}
+  .hidden{display:none}
+  .spin{opacity:.6;pointer-events:none}
+
+  .lockbar{display:flex;align-items:center;gap:10px;margin-top:10px;padding:8px 10px;
+    border-radius:8px;background:#1d242c;border:1px solid var(--line)}
+  .switch{position:relative;display:inline-block;width:38px;height:22px;flex:none}
+  .switch input{opacity:0;width:0;height:0}
+  .slider{position:absolute;inset:0;background:#3a444d;border-radius:22px;cursor:pointer;transition:.15s}
+  .slider:before{content:"";position:absolute;height:16px;width:16px;left:3px;top:3px;
+    background:#e6edf3;border-radius:50%;transition:.15s}
+  .switch input:checked + .slider{background:var(--bad)}
+  .switch input:checked + .slider:before{transform:translateX(16px)}
+  #lockLabel{font-size:12px;font-weight:600}
+  #lockLabel.on{color:var(--bad)}
+
+  .tpl-head{display:flex;justify-content:space-between;align-items:center;margin-top:10px}
+  .tpl-head h3{margin:0}
+  .customized{color:var(--warn);border:1px solid #4a3a12;border-radius:10px;padding:1px 7px;font-size:10px}
+  .tplbtns{display:flex;gap:6px}
+  .tplbtns button{padding:3px 9px;font-size:11px}
+  textarea.tplEdit{width:100%;background:#10151b;border:1px solid #2a7ab5;border-radius:6px;
+    color:var(--txt);padding:10px 12px;font:12px/1.5 ui-monospace,SFMono-Regular,Menlo,monospace;
+    resize:vertical;min-height:160px}
+
+  .modal-overlay{position:fixed;inset:0;background:rgba(0,0,0,.6);display:flex;align-items:center;
+    justify-content:center;z-index:50;padding:20px}
+  .modal-overlay.hidden{display:none}
+  .modal{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:20px 22px;
+    max-width:440px;width:100%}
+  .modal h3{margin:0 0 10px;font-size:15px}
+  .modal p{margin:0 0 16px;font-size:12.5px;color:#c7d2db;white-space:pre-wrap}
+  .modal .btns{margin-top:0;justify-content:flex-end}
+</style>
+</head>
+<body>
+<header>
+  <h1>Kommunikation <a href="index.html" style="float:right;font-size:11px;font-weight:400">← Karta</a></h1>
+  <div class="sub" id="meta">läser in…</div>
+  <div class="lockbar">
+    <label class="switch">
+      <input type="checkbox" id="lockToggle">
+      <span class="slider"></span>
+    </label>
+    <span id="lockLabel">🔒 Utskick låsta – lås upp för att kunna skicka</span>
+  </div>
+  <div class="lockbar" id="testBar">
+    <button id="testSendBtn">Skicka testutskick (alla mallar)</button>
+    <span class="sub" id="testSendSub"></span>
+  </div>
+</header>
+<main>
+  <div id="banners"></div>
+  <div id="testResults"></div>
+  <div id="cards">läser in…</div>
+</main>
+
+<div class="modal-overlay hidden" id="modalOverlay">
+  <div class="modal">
+    <h3 id="modalTitle"></h3>
+    <p id="modalBody"></p>
+    <div class="btns">
+      <button id="modalCancel">Avbryt</button>
+      <button id="modalConfirm" class="danger"></button>
+    </div>
+  </div>
+</div>
+
+<script>
+const STATUS_LABEL={unsent:'Ej skickat',sent:'Skickat',delivered:'Levererat',failed:'Misslyckat',skipped:'Hoppades över'};
+let DATA=null;
+
+function esc(s){return (s??'').toString().replace(/[&<>]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;'}[c]));}
+
+function renderTemplate(text){
+  return esc(text).replace(/\[[^\]]+\]/g,m=>`<span class="tok">${m}</span>`);
+}
+
+async function load(){
+  const res=await fetch('/api/comms');
+  DATA=await res.json();
+  render();
+}
+
+function render(){
+  const banners=document.getElementById('banners');
+  banners.innerHTML='';
+  if(DATA.error){
+    banners.innerHTML=`<div class="banner bad">Kunde inte läsa comms-data: ${esc(DATA.error)}</div>`;
+    document.getElementById('cards').innerHTML='';
+    return;
+  }
+  if(DATA.schedule_missing){
+    banners.innerHTML=`<div class="banner bad">data/schedule.json saknas – kör <code>python3 run.py</code> innan utskick kan förhandsgranskas eller skickas.</div>`;
+    document.getElementById('cards').innerHTML='';
+    document.getElementById('meta').textContent='inget schema inläst';
+    return;
+  }
+  if(!DATA.elks_configured){
+    banners.innerHTML+=`<div class="banner warn">46elks är inte konfigurerat. Lägg <code>ELKS_API_USERNAME</code> och <code>ELKS_API_PASSWORD</code> i <code>.env</code> och starta om servern för att kunna skicka SMS på riktigt. Fram tills dess loggas "Skicka"-knappen som hoppad över.</div>`;
+  }
+  const total=DATA.sendouts.reduce((s,so)=>s+so.recipients,0);
+  document.getElementById('meta').textContent=
+    `${DATA.sendouts.length} utskick · avsändare "${DATA.elks_from}" · ${DATA.elks_configured?'46elks konfigurerat':'46elks EJ konfigurerat'}`;
+
+  const cards=document.getElementById('cards');
+  cards.innerHTML='';
+  DATA.sendouts.forEach(so=>cards.appendChild(cardEl(so)));
+  applyLock();
+  applyTestBar();
+}
+
+function testMsgCount(){
+  return DATA.sendouts.reduce((s,so)=>s+so.templates.length,0);
+}
+
+function applyTestBar(){
+  const btn=document.getElementById('testSendBtn');
+  const sub=document.getElementById('testSendSub');
+  const n=testMsgCount();
+  if(!DATA.double_check_configured){
+    btn.disabled=true;
+    btn.title='Lägg DUBBLE_CHECK_TEXTS_TO_NUMBER i .env och starta om servern';
+    sub.textContent='Inget testnummer konfigurerat (.env: DUBBLE_CHECK_TEXTS_TO_NUMBER)';
+  }else{
+    btn.disabled=false;
+    btn.title='';
+    sub.textContent=`Skickar ${n} ifyllda exempelmeddelanden (en per mallvariant) till ditt testnummer`;
+  }
+}
+
+function badgeRow(counts){
+  const order=['unsent','sent','delivered','failed','skipped'];
+  return order.filter(k=>counts[k]).map(k=>
+    `<span class="badge ${k}">${counts[k]} ${STATUS_LABEL[k]}</span>`).join('');
+}
+
+function cardEl(so){
+  const el=document.createElement('div');
+  el.className='card';
+  el.dataset.key=so.key;
+
+  const warn=so.groups.filter(g=>g.status==='failed'||g.status==='skipped');
+
+  el.innerHTML=`
+    <div class="card-top">
+      <h2>${esc(so.title)}</h2>
+      <span class="count">${so.recipients} mottagare</span>
+    </div>
+    <div class="badges">${badgeRow(so.counts) || '<span class="badge">inga skickade än</span>'}</div>
+
+    <div class="tpl">
+      ${so.templates.map((t,i)=>`
+        <div class="tpl-head">
+          <h3>${t.role?esc(t.role)+' – mall':'Mall'} ${t.customized?'<span class="customized">ändrad</span>':''}</h3>
+          <div class="tplbtns">
+            <button data-tpl-act="edit" data-idx="${i}">Redigera</button>
+            ${t.customized?`<button data-tpl-act="reset" data-idx="${i}">Återställ till standard</button>`:''}
+          </div>
+        </div>
+        <div class="tplview" data-idx="${i}"><pre>${renderTemplate(t.text)}</pre></div>
+      `).join('')}
+    </div>
+
+    <div class="btns">
+      <button class="p" data-act="send">Skicka till alla (${so.recipients})</button>
+      <button data-act="status">Uppdatera status</button>
+      <button data-act="recipients">Visa mottagare</button>
+    </div>
+
+    <div class="warnout"></div>
+    <div class="recip hidden"></div>
+  `;
+
+  el.querySelector('[data-act="send"]').onclick=()=>doSend(so.key, so.recipients, so.title);
+  el.querySelector('[data-act="status"]').onclick=()=>doStatus(so.key);
+  el.querySelector('[data-act="recipients"]').onclick=(e)=>toggleRecipients(el, so, e.target);
+  el.querySelectorAll('[data-tpl-act="edit"]').forEach(b=>
+    b.onclick=()=>editTemplate(el, so, +b.dataset.idx));
+  el.querySelectorAll('[data-tpl-act="reset"]').forEach(b=>
+    b.onclick=()=>doResetTemplate(so.key, +b.dataset.idx));
+
+  renderWarnings(el, warn);
+  return el;
+}
+
+function editTemplate(el, so, idx){
+  const t=so.templates[idx];
+  const box=el.querySelector(`.tplview[data-idx="${idx}"]`);
+  box.innerHTML=`
+    <textarea class="tplEdit">${esc(t.text)}</textarea>
+    <div class="btns">
+      <button class="p" data-e="save">Spara mall</button>
+      <button data-e="cancel">Avbryt</button>
+    </div>`;
+  box.querySelector('[data-e="cancel"]').onclick=()=>{
+    box.innerHTML=`<pre>${renderTemplate(t.text)}</pre>`;
+  };
+  box.querySelector('[data-e="save"]').onclick=()=>
+    doSaveTemplate(so.key, idx, box.querySelector('textarea').value);
+}
+
+function renderWarnings(el, warn){
+  const box=el.querySelector('.warnout');
+  if(!warn.length){box.innerHTML='';return;}
+  box.innerHTML=`<div class="warnbox">
+    <b>${warn.length} mottagare fick inget meddelande</b>
+    ${warn.map(g=>`<div class="row">Grupp ${g.group_id} · ${esc(g.name1)} & ${esc(g.name2)} · ${esc(g.phone1)} — ${esc(g.error||STATUS_LABEL[g.status])}</div>`).join('')}
+  </div>`;
+}
+
+function renderRecipients(el, so){
+  const box=el.querySelector('.recip');
+  box.innerHTML=`<table><thead><tr>
+      <th>Grupp</th><th>Namn</th><th>Roll</th><th>Telefon</th><th>Status</th><th>Skickat</th>
+    </tr></thead><tbody>
+    ${so.groups.map(g=>`<tr>
+      <td>${g.group_id}</td>
+      <td>${esc(g.name1)} & ${esc(g.name2)}</td>
+      <td>${esc(g.role)}</td>
+      <td>${esc(g.phone1)}</td>
+      <td class="st"><span class="dot ${g.status}"></span>${STATUS_LABEL[g.status]}${g.error?` <span style="color:var(--dim)">(${esc(g.error)})</span>`:''}</td>
+      <td>${g.sent_at?esc(g.sent_at.replace('T',' ')):''}</td>
+    </tr>`).join('')}
+  </tbody></table>`;
+}
+
+function toggleRecipients(el, so, btn){
+  const box=el.querySelector('.recip');
+  const show=box.classList.contains('hidden');
+  if(show){renderRecipients(el, so); box.classList.remove('hidden'); btn.textContent='Dölj mottagare';}
+  else{box.classList.add('hidden'); btn.textContent='Visa mottagare';}
+}
+
+function updateCard(so){
+  const idx=DATA.sendouts.findIndex(s=>s.key===so.key);
+  if(idx>=0) DATA.sendouts[idx]=so;
+  const old=document.querySelector(`.card[data-key="${so.key}"]`);
+  const fresh=cardEl(so);
+  const wasOpen=old && !old.querySelector('.recip').classList.contains('hidden');
+  old.replaceWith(fresh);
+  if(wasOpen){
+    fresh.querySelector('.recip').classList.remove('hidden');
+    fresh.querySelector('[data-act="recipients"]').textContent='Dölj mottagare';
+    renderRecipients(fresh, so);
+  }
+  applyLock();
+}
+
+// --- lock switch --------------------------------------------------------
+let UNLOCKED=false;
+function applyLock(){
+  document.querySelectorAll('[data-act="send"]').forEach(b=>{
+    b.disabled=!UNLOCKED;
+    b.title=UNLOCKED?'':'Lås upp utskick högst upp på sidan för att kunna skicka';
+  });
+  const lbl=document.getElementById('lockLabel');
+  lbl.textContent=UNLOCKED
+    ? '🔓 Utskick olåsta – SMS kan skickas'
+    : '🔒 Utskick låsta – lås upp för att kunna skicka';
+  lbl.classList.toggle('on', UNLOCKED);
+}
+document.getElementById('lockToggle').addEventListener('change', e=>{
+  UNLOCKED=e.target.checked;
+  applyLock();
+});
+
+document.getElementById('testSendBtn').addEventListener('click', doTestSend);
+
+async function doTestSend(){
+  const n=testMsgCount();
+  const ok=await confirmModal({
+    title:`Skicka testutskick till ditt nummer?`,
+    body:DATA.elks_configured
+      ? `Detta skickar ${n} riktiga SMS via 46elks – ett ifyllt exempel per mallvariant – till numret i DUBBLE_CHECK_TEXTS_TO_NUMBER. Går inte att ångra.`
+      : `46elks är inte konfigurerat – inget skickas på riktigt, men alla ${n} testmeddelanden loggas som "hoppades över".`,
+    confirmText:`Ja, skicka ${n} test-SMS`,
+    danger:false,
+  });
+  if(!ok) return;
+  const btn=document.getElementById('testSendBtn');
+  btn.disabled=true;
+  try{
+    const res=await fetch('/api/comms/test-send',{method:'POST'});
+    const data=await res.json();
+    if(data.error){alert('Fel: '+data.error); return;}
+    renderTestResults(data);
+  }catch(e){alert('Fel vid testutskick: '+e);
+  }finally{applyTestBar();}
+}
+
+function renderTestResults(data){
+  const box=document.getElementById('testResults');
+  const counts={};
+  data.results.forEach(r=>counts[r.status]=(counts[r.status]||0)+1);
+  box.innerHTML=`<div class="warnbox">
+    <b>Testutskick till ${esc(data.to||'(inget nummer)')}</b>
+    <div class="badges" style="margin:8px 0">${badgeRow(counts)}</div>
+    ${data.results.map(r=>`<div class="row">${esc(r.title)}${r.role?' · '+esc(r.role):''} (grupp ${r.group_id}) — ${esc(r.error||STATUS_LABEL[r.status])}</div>`).join('')}
+  </div>`;
+}
+
+// --- confirm modal (instead of window.confirm, to cut down on misclicks) ---
+function confirmModal({title, body, confirmText, danger=true}){
+  return new Promise(resolve=>{
+    const ov=document.getElementById('modalOverlay');
+    document.getElementById('modalTitle').textContent=title;
+    document.getElementById('modalBody').textContent=body;
+    const okBtn=document.getElementById('modalConfirm');
+    okBtn.textContent=confirmText;
+    okBtn.className=danger?'danger':'p';
+    ov.classList.remove('hidden');
+    const cancelBtn=document.getElementById('modalCancel');
+    const close=(val)=>{ov.classList.add('hidden'); okBtn.onclick=null; cancelBtn.onclick=null; resolve(val);};
+    okBtn.onclick=()=>close(true);
+    cancelBtn.onclick=()=>close(false);
+    ov.onclick=(e)=>{if(e.target===ov) close(false);};
+  });
+}
+
+async function doSend(key, n, title){
+  if(!UNLOCKED){
+    await confirmModal({title:'Utskick låsta', body:'Lås upp utskick med reglaget högst upp på sidan innan du kan skicka SMS.', confirmText:'OK', danger:false});
+    return;
+  }
+  const configured=DATA.elks_configured;
+  const ok=await confirmModal({
+    title:`Skicka "${title}" till ${n} mottagare?`,
+    body: configured
+      ? `Detta skickar riktiga SMS via 46elks till alla ${n} mottagare nedan, direkt. Går inte att ångra.`
+      : `46elks är inte konfigurerat – inget skickas på riktigt, men utskicket loggas som "hoppat över" för alla ${n} mottagare. Fortsätt ändå?`,
+    confirmText: `Ja, skicka till ${n} mottagare`,
+  });
+  if(!ok) return;
+  const card=document.querySelector(`.card[data-key="${key}"]`);
+  card.classList.add('spin');
+  try{
+    const res=await fetch('/api/comms/send',{method:'POST',headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({moment:key})});
+    const so=await res.json();
+    if(so.error){alert('Fel: '+so.error); card.classList.remove('spin'); return;}
+    updateCard(so);
+  }catch(e){alert('Fel vid utskick: '+e); card.classList.remove('spin');}
+}
+
+async function doStatus(key){
+  const card=document.querySelector(`.card[data-key="${key}"]`);
+  card.classList.add('spin');
+  try{
+    const res=await fetch('/api/comms/status',{method:'POST',headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({moment:key})});
+    const so=await res.json();
+    if(so.error){alert('Fel: '+so.error); card.classList.remove('spin'); return;}
+    updateCard(so);
+  }catch(e){alert('Fel vid statuskontroll: '+e); card.classList.remove('spin');}
+}
+
+async function doSaveTemplate(key, idx, text){
+  const card=document.querySelector(`.card[data-key="${key}"]`);
+  card.classList.add('spin');
+  try{
+    const res=await fetch('/api/comms/templates/save',{method:'POST',headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({moment:key, role_index:idx, text})});
+    const so=await res.json();
+    if(so.error){alert('Fel: '+so.error); card.classList.remove('spin'); return;}
+    updateCard(so);
+  }catch(e){alert('Fel vid sparande: '+e); card.classList.remove('spin');}
+}
+
+async function doResetTemplate(key, idx){
+  const ok=await confirmModal({
+    title:'Återställ mall till standard?', body:'Din redigering för denna mall ersätts med originaltexten.',
+    confirmText:'Återställ', danger:true,
+  });
+  if(!ok) return;
+  const card=document.querySelector(`.card[data-key="${key}"]`);
+  card.classList.add('spin');
+  try{
+    const res=await fetch('/api/comms/templates/reset',{method:'POST',headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({moment:key, role_index:idx})});
+    const so=await res.json();
+    if(so.error){alert('Fel: '+so.error); card.classList.remove('spin'); return;}
+    updateCard(so);
+  }catch(e){alert('Fel vid återställning: '+e); card.classList.remove('spin');}
+}
+
+load();
+</script>
+</body>
+</html>

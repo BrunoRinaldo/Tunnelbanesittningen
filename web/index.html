@@ -42,6 +42,7 @@
   input[type=search]{width:100%;padding:8px 10px;border-radius:6px;border:1px solid var(--line);
     background:#1d242c;color:var(--txt);font-size:13px;outline:none}
   input[type=search]:focus{border-color:#3d81b8}
+  input[type=checkbox]{accent-color:#3d81b8}
   #list{padding:6px 8px 40px}
   .row{padding:7px 8px;border-radius:6px;cursor:pointer;display:flex;gap:9px;align-items:baseline}
   .row:hover{background:#1d242c}
@@ -73,7 +74,7 @@
 <body>
 <div id="side">
   <div class="pad top">
-    <h1>Tunnelbanesittning</h1>
+    <h1>Tunnelbanesittning <a href="comms.html" style="float:right;font-size:11px;color:var(--dim);font-weight:400">Kommunikation →</a></h1>
     <div class="sub" id="meta">läser in…</div>
     <div class="stats" id="stats"></div>
     <div class="legend">
@@ -83,6 +84,12 @@
       <span class="clk" data-leg="2" onclick="showLeg(2)"><i style="background:var(--issy)"></i>Issy</span>
     </div>
     <div class="sub" style="margin-top:6px;font-size:10px">Tryck på en rätt för en sammanställning av resorna dit</div>
+    <label style="display:flex;align-items:center;gap:8px;margin-top:10px;font-size:11.5px;cursor:pointer">
+      <input type="checkbox" id="allRoutesToggle" onchange="toggleAllRoutes(this.checked)">
+      Visa alla verkliga resvägar samtidigt
+      <span class="sub" style="font-size:10px">(plottrigt men kul – 189 anrop)</span>
+    </label>
+    <div class="sub" id="allRoutesStatus" style="margin-top:4px;display:none"></div>
   </div>
 
   <div class="pad" id="legPanel">
@@ -341,6 +348,53 @@ function realRoute(){
       (res,st)=>{ if(st==='OK') rend.setDirections(res);
                   else document.getElementById('dWarn').textContent='Directions: '+st; });
   }
+}
+
+let allRouteRenderers=[],allRoutesGen=0;
+
+async function toggleAllRoutes(on){
+  const myGen=++allRoutesGen;
+  const statusEl=document.getElementById('allRoutesStatus');
+  if(!on){
+    allRouteRenderers.forEach(r=>r.setMap(null));
+    allRouteRenderers=[];
+    statusEl.style.display='none';
+    return;
+  }
+  statusEl.style.display='block';
+  const legColors=['#E8743B','#2E86C1','#7D5BA6'];
+  const jobs=[];
+  D.routes.forEach(r=>{
+    const pts=[...r.stops.map(s=>D.gmap[s.host]),{lat:D.meta.issy.lat,lng:D.meta.issy.lng}];
+    for(let i=0;i<3;i++){
+      jobs.push({i,mode:(r.legs[i].mode||'').startsWith('walk')?'WALKING':'TRANSIT',
+        origin:{lat:pts[i].lat,lng:pts[i].lng},dest:{lat:pts[i+1].lat,lng:pts[i+1].lng},
+        arrive:r.legs[i].arrive});
+    }
+  });
+  const svc=new google.maps.DirectionsService();
+  let ok=0,fail=0;
+  for(let idx=0;idx<jobs.length;idx++){
+    if(myGen!==allRoutesGen) return;
+    const j=jobs[idx];
+    statusEl.textContent=`Laddar resvägar… ${idx+1}/${jobs.length}`;
+    try{
+      const res=await svc.route({
+        origin:j.origin,destination:j.dest,travelMode:j.mode,
+        transitOptions:j.mode==='TRANSIT'?{arrivalTime:new Date(`${D.meta.date}T${j.arrive}:00`)}:undefined
+      });
+      if(myGen!==allRoutesGen) return;
+      const rend=new google.maps.DirectionsRenderer({
+        map,suppressMarkers:true,preserveViewport:true,
+        polylineOptions:{strokeColor:legColors[j.i],strokeWeight:2,strokeOpacity:.35}
+      });
+      rend.setDirections(res);
+      allRouteRenderers.push(rend);
+      ok++;
+    }catch(e){ fail++; }
+    await new Promise(res=>setTimeout(res,120));
+  }
+  statusEl.textContent=`${ok} resvägar visas${fail?` (${fail} misslyckades)`:''}`;
 }
 
 function copyMsg(btn){

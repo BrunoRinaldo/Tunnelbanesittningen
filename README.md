@@ -1,6 +1,6 @@
 # Tunnelbanesittning – logistik
 
-63 par (126 personer), tre rätter, 21 bord per rätt, 3 par per bord.
+63 par (126 personer) (eller något annat nummer y=3x + 3), tre rätter, 21 bord per rätt, 3 par per bord.
 Varje par är värd exakt en gång. **Inget par träffar ett annat par mer än en gång
 under hela kvällen** – det är garanterat av konstruktionen, inte hoppats fram.
 
@@ -15,7 +15,7 @@ alternerad) plus simulated annealing ovanpå för de icke-linjära straffen.
 
 ## 0. Indata: deltagarlistan
 
-Du lämnar in **en Excel-fil** som ser ut som `data/Grupper.xlsx` – den råa
+Du lämnar in **en Excel-fil** som ser ut som `data/Grupper_mall.xlsx` – den råa
 exporten från anmälningsformuläret, en rad per **par**. `import_participants.py`
 läser den och skriver `data/participants.json`, som resten av pipelinen använder:
 
@@ -77,6 +77,9 @@ Skapa filen `.env` i samma mapp som `config.py` och lägg en rad i den:
 
 ```
 GOOGLE_API_KEY=AIza...din nyckel...
+ELKS_API_USERNAME= ...din nyckel...
+ELKS_API_PASSWORD= ...din nyckel...
+ELKS_FROM=Kulturnämnden
 ```
 
 Klart. Den nyckeln används både av Python-skripten och av kartan.
@@ -319,3 +322,47 @@ Google säger vilket.
 **`web/data.json saknas`**
 
 `run.py` gick inte igenom. Kör den igen och läs felet högst upp, inte längst ner.
+
+---
+
+## 9. Kommunikationssidan – SMS-utskick
+
+`http://localhost:8000/comms.html` (länkad från kartan) visar de sex
+utskicken (samma `moment` som flikarna i `meddelanden.csv`: dubbelkolla,
+schema, förrätt, varmrätt, efterrätt, efterfest), med en mall per utskick
+(platshållare som `[name1]`, `[tid1]` istället för riktiga värden – de
+riktiga meddelandena byggs från `data/schedule.json` med samma funktioner
+som `export.py` använder).
+
+Per utskick: en **Skicka till alla**-knapp (skickar det riktiga,
+personliga meddelandet till alla 63 grupper via [46elks](https://46elks.se)),
+en **Uppdatera status**-knapp (pollar 46elks för leveransstatus) och en
+**Visa mottagare**-tabell med status per grupp. Grupper vars SMS inte gick
+fram (misslyckades eller hoppades över) listas som varningar direkt under
+utskicket, med telefonnummer så de kan följas upp manuellt.
+
+**Låsreglaget** högst upp på sidan måste slås om till "olåst" innan någon
+**Skicka till alla**-knapp går att klicka på – sidan öppnas alltid låst, så
+ett feltryck inte skickar 63 SMS av misstag. Reglaget nollställs varje gång
+sidan laddas om. Ett klick på **Skicka till alla** (när upplåst) öppnar
+dessutom alltid en bekräftelseruta med mottagarantal innan något skickas.
+
+**Mallarna är redigerbara.** Varje utskick har en eller två mallar (värd/gäst
+för förrätt/varmrätt/efterrätt) med `[token]`-platshållare. **Redigera** gör
+mallen om till ett textfält, **Spara mall** skriver ändringen till
+`data/message_templates.json` – det är samma fil både `export.py` (xlsx/
+`meddelanden.csv`) och comms-sidans **Skicka till alla** läser från, så en
+ändring i webbgränssnittet slår igenom överallt meddelandet genereras, direkt
+och utan omstart. **Återställ till standard** tar bort ändringen för just den
+mallen. Ett borttaget eller felstavat `[token]` gör att den platsen i det
+riktiga meddelandet lämnas som bokstavlig text (`[token]`) istället för att
+tyst försvinna – syns direkt i förhandsgranskningen.
+
+Sätt `ELKS_API_USERNAME`, `ELKS_API_PASSWORD` och valfritt `ELKS_FROM`
+(avsändarnamn, max 11 tecken) i `.env` och starta om `serve.py`. Utan dem
+kör sidan i "ej konfigurerat"-läge – knapparna funkar men varje utskick
+loggas som `skipped` istället för att gå ut, så gränssnittet går att testa
+innan ett 46elks-konto finns.
+
+Skickstatus per grupp sparas i `data/send_log.json` (gitignorad – innehåller
+namn, telefonnummer och meddelandetext). Radera filen för att nollställa allt.

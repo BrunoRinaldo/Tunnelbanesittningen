@@ -26,7 +26,7 @@ ARRIVE_AFTERPARTY = "22:00"
 
 # ---------------------------------------------------------------- messaging (export.py)
 # Deadline shown in the "dubbelkolla info" SMS for guests to report errors.
-REACHOUT_DATE = "a"               # YYYY-MM-DD
+REACHOUT_DATE = "2026-11-08"      # YYYY-MM-DD
 # No stated alcohol preference means the pair wants alcohol - that is the default.
 ALCOHOL_DEFAULT = "Alkohol!!!"
 
@@ -113,9 +113,25 @@ W_MAX_OLD = 0.6
 # ---------------------------------------------------------------- server
 PORT = 8000
 
+# ---------------------------------------------------------------- SMS (comms page)
+# 46elks (https://46elks.se) account used by the comms page to send the SMS
+# sendouts and poll delivery status. Leave empty to run the comms page in
+# "not configured" mode - sends are logged as skipped instead of going out.
+ELKS_API_USERNAME = os.environ.get("ELKS_API_USERNAME", "")
+ELKS_API_PASSWORD = os.environ.get("ELKS_API_PASSWORD", "")
+# Alphanumeric sender shown to recipients - max 11 GSM characters.
+ELKS_FROM = os.environ.get("ELKS_FROM", "TBS")
+
+# Swedish phone number (comms page) that the "Skicka testutskick" button sends
+# one real, filled-in copy of every message template to, so you can read them
+# on an actual phone before unlocking the real sendouts. Leave empty to hide
+# the button.
+DOUBLE_CHECK_NUMBER = os.environ.get("DUBBLE_CHECK_TEXTS_TO_NUMBER", "")
+
 # ---------------------------------------------------------------- .env loader
 def _load_env():
     global GOOGLE_SERVER_KEY, GOOGLE_BROWSER_KEY
+    global ELKS_API_USERNAME, ELKS_API_PASSWORD, ELKS_FROM, DOUBLE_CHECK_NUMBER
     p = os.path.join(os.path.dirname(os.path.abspath(__file__)), ".env")
     if not os.path.exists(p):
         return
@@ -134,5 +150,13 @@ def _load_env():
                 GOOGLE_SERVER_KEY = v
             if not GOOGLE_BROWSER_KEY:
                 GOOGLE_BROWSER_KEY = v
+        elif k == "ELKS_API_USERNAME" and not ELKS_API_USERNAME:
+            ELKS_API_USERNAME = v
+        elif k == "ELKS_API_PASSWORD" and not ELKS_API_PASSWORD:
+            ELKS_API_PASSWORD = v
+        elif k == "ELKS_FROM" and v:
+            ELKS_FROM = v
+        elif k == "DUBBLE_CHECK_TEXTS_TO_NUMBER" and not DOUBLE_CHECK_NUMBER:
+            DOUBLE_CHECK_NUMBER = v
 
 _load_env()

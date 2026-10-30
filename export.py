@@ -6,6 +6,7 @@ from openpyxl.styles import Alignment, Border, Font, PatternFill, Side
 from openpyxl.utils import get_column_letter
 
 import config
+import templates
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 SCH = os.path.join(HERE, "data", "schedule.json")
@@ -62,13 +63,6 @@ MSG_TABS = [
     ("dessert", "Efterrätt"),
     ("efterfest", "Efterfest"),
 ]
-
-# Course-specific sign-off appended to the end of each course SMS.
-COURSE_CLOSING = {
-    "starter": "Drink Responsibally (or dont)...\nKulturnämnden",
-    "main": "Kom inte sent!!!\nKulturnämnden",
-    "dessert": "Det är snart dags för sötsaker och drinkar!\nKulturnämnden",
-}
 
 def _clean_note(v):
     v = (v or "").strip()
@@ -160,117 +154,92 @@ def course_role(g, r, course):
 
 def pre_message(g, gmap):
     gg = gmap[g]
-    al = _clean_note(gg.get("allergies")) or "inga allergier"
-    return (
-        f"Hej {gg['name1']} & {gg['name2']}!\n"
-        f"Grattis till er plats i tunnelbanesittningen den {config.EVENT_DATE}. \n\n"
-        f"Dubbelkolla att denna info stämmerinnan tunnelbanesittningen:\n\n"
-        f"Er adress: {_addr(gmap, g)}\n"
-        f"Allergier / kostönskemål: {al}\n"
-        f"Alkoholpreferens: {alcohol_of(gg)}\n"
-        f"Secundärt nummer: {gg['phone2']}\n"
-        f"E-post: {gg['email']}\n\n"
-        f"Svara på detta meddelande senast {config.REACHOUT_DATE} om något är fel eller saknas.\n\n"
-        f"Ses på TBS och vi älskar er!\n"
-        f"Kulturnämnden"
-    )
+    al = _clean_note(gg.get("allergies")) or "Inga allergier"
+    values = {
+        "name1": gg["name1"], "name2": gg["name2"], "datum": config.EVENT_DATE,
+        "adress": _addr(gmap, g), "allergier": al, "alkoholpreferens": alcohol_of(gg),
+        "telefon2": gg["phone2"], "epost": gg["email"], "sista_svarsdag": config.REACHOUT_DATE,
+    }
+    return templates.render(templates.get_template_text("dubbelkolla", 0), values)
 
 
 def schema_message(g, r, gmap, issy_addr):
     gg = gmap[g]
-    out = [f"Hej igen {first_name(gg['name1'])} & {first_name(gg['name2'])}, nu bär det snart av!\n",
-           "Dessa adresser kommer ni besöka under kvällen.\n\n"
-           f"Er kväll ser ut som följande"]
-    for ci, course in enumerate(COURSE_KEYS):
-        stop = r["stops"][ci]
-        out.append(f"{COURSE_UP[course]} kl {stop['arrive']}: {_addr(gmap, stop['host'])}")
-    out.append(f"EFTERFEST kl {config.ARRIVE_AFTERPARTY}: {issy_addr}")
-    out.append("")
-    out.append(f"Ni är ansvariga för {COURSE_UP[r['hosts']]} – den lagar och serverar ni hemma hos er.")
     hosted = r["stops"][COURSE_KEYS.index(r["hosts"])]
-    g_al = "; ".join(x for x in (_clean_note(gmap[i].get("allergies")) for i in hosted["co"]) if x) or "inga"
+    g_al = "; ".join(x for x in (_clean_note(gmap[i].get("allergies")) for i in hosted["co"]) if x) or "Inga allergier"
     g_dr = "; ".join(alcohol_of(gmap[i]) for i in hosted["co"])
-    out.append(f"Era gäster har OSAt Allergier: {g_al} och Alkoholpreferens: {g_dr}")
-    out.append("")
-    out.append("Ses snart på issy!")
-    out.append("Puss Puss,\nKulturnämnden")
-    return "\n".join(out)
+    values = {
+        "name1": first_name(gg["name1"]), "name2": first_name(gg["name2"]),
+        "tid1": r["stops"][0]["arrive"], "adress1": _addr(gmap, r["stops"][0]["host"]),
+        "tid2": r["stops"][1]["arrive"], "adress2": _addr(gmap, r["stops"][1]["host"]),
+        "tid3": r["stops"][2]["arrive"], "adress3": _addr(gmap, r["stops"][2]["host"]),
+        "tid4": config.ARRIVE_AFTERPARTY, "issy-adress": issy_addr,
+        "er_rätt": COURSE_UP[r["hosts"]],
+        "gästers_allergier": g_al, "gästers_alkoholpreferens": g_dr,
+    }
+    return templates.render(templates.get_template_text("schema", 0), values)
+
+
+def _guest_block(items):
+    """Bullet list for course_message's guest allergies/preferences block."""
+    return "\n".join(f"- {x}" for x in items) if items else "- Inga allergier"
 
 
 def course_message(g, r, gmap, course, issy_addr):
     ci = COURSE_KEYS.index(course)
     stop = r["stops"][ci]
     legs = r["legs"]
-    label = COURSE_UP[course]
     gg = gmap[g]
-    out = [f"Tjenare {first_name(gg['name1'])} och {first_name(gg['name2'])}!", ""]
+    is_host = stop["host"] == g
+    role_index = 0 if is_host else 1
+    values = {"name1": first_name(gg["name1"]), "name2": first_name(gg["name2"])}
 
-    if stop["host"] == g:
-        out.append(f"{label}, NI ÄR VÄRDAR, hemma hos er:")
-        out.append(f"{_addr(gmap, g)}")
-        out.append(f"Gästerna är framme kl {stop['arrive']}. Ni blir 6 personer (3 par inkl. er).")
+    if is_host:
+        values["er_adress"] = _addr(gmap, g)
+        values["tid1"] = stop["arrive"]
         al = [x for x in (_clean_note(gmap[i].get("allergies")) for i in stop["co"]) if x]
-        out.append("")
-        out.append("Era gästers allergier / kostönskemål:")
-        out += [f"- {x}" for x in al] or ["- inga"]
-        out.append("Era gästers alkoholpreferenser:")
+        values["gästallergier"] = _guest_block(al)
         prefs = []
         for i in stop["co"]:
             p = _clean_note(gmap[i].get("alkoholpreferenser")) or config.ALCOHOL_DEFAULT
             if p not in prefs:
                 prefs.append(p)
-        out += prefs if len(prefs) == 1 else [f"- {p}" for p in prefs]
+        values["gästalkohol"] = prefs[0] if len(prefs) == 1 else "\n".join(f"- {p}" for p in prefs)
     else:
-        if ci == 0:
-            out.append(f"{label} kl {stop['arrive']}, kom till adressen:")
-        else:
+        values["tid1"] = stop["arrive"]
+        values["värd_adress"] = _addr(gmap, stop["host"])
+        values["värdens_telefon"] = gmap[stop["host"]]["phone1"]
+        if ci > 0:
             lg = legs[ci - 1]
-            out.append(f"Snart dags för {label.lower()}. Avgång ca {lg['depart']}, "
-                       f"framme kl {stop['arrive']} (vårt script estimerar "
-                       f"~{round(lg['min'] or 0)} min {lg['mode']}, men dubbelkolla "
-                       f"er exakta restid).")
-            out.append("Ni ska till adressen:")
-        out.append(f"{_addr(gmap, stop['host'])}")
-        out.append(f"Ring värden: {gmap[stop['host']]['phone1']}")
+            values["avgångstid_hit"] = lg["depart"]
+            values["minuter_hit"] = round(lg["min"] or 0)
+            values["färdsätt_hit"] = lg["mode"]
 
-    out.append("")
     if course == "dessert":
         lg = legs[2]
-        out.append(f"Efter efterrätten: efterfest kl {config.ARRIVE_AFTERPARTY} "
-                   f"på issy, avgång ca {lg['depart']}:")
-        out.append(f"{issy_addr}")
+        values["tid2"] = config.ARRIVE_AFTERPARTY
+        values["avgångstid_dit"] = lg["depart"]
+        values["issy-adress"] = issy_addr
     else:
         nxt = r["stops"][ci + 1]
         lg = legs[ci]
-        out.append(f"Efter {label.lower()}en: åk vidare till {_addr(gmap, nxt['host'])}.")
-        if ci == 0:
-            out.append(f"Ni ska vara framme kl {nxt['arrive']} (avgång ca {lg['depart']}, "
-                       f"vårt script estimerar ~{round(lg['min'] or 0)} min {lg['mode']}, "
-                       f"men dubbelkolla er exakta restid):")
-        else:
-            out.append(f"Ni ska vara framme kl {nxt['arrive']} "
-                       f"(avgång ca {lg['depart']}, ~{round(lg['min'] or 0)} min {lg['mode']}):")
+        values["nästa_adress"] = _addr(gmap, nxt["host"])
+        values["tid2"] = nxt["arrive"]
+        values["avgångstid_dit"] = lg["depart"]
+        values["minuter_dit"] = round(lg["min"] or 0)
+        values["färdsätt_dit"] = lg["mode"]
 
-    out.append("")
-    out.append(COURSE_CLOSING[course])
-    return "\n".join(out)
+    return templates.render(templates.get_template_text(course, role_index), values)
 
 
 def afterparty_message(g, gmap, issy_addr):
     gg = gmap[g]
-    return "\n".join([
-        f"Dags för efterfest {first_name(gg['name1'])} och {first_name(gg['name2'])}!!!",
-        "",
-        f"Rätterna är avklarade, nu rullar hela tunnelbanesittningen vidare "
-        f"mot {config.AFTERPARTY_NAME}. Ingen matlagning, inga adresser att "
-        f"pricka av, bara ni, alla andra och en taggad kulturnämnd som väntar.",
-        "",
-        f"Efterfest börjar kl {config.ARRIVE_AFTERPARTY} på adressen:",
-        f"{issy_addr}",
-        "",
-        "Vi ses i dimman!",
-        "Kulturnämnden",
-    ])
+    values = {
+        "name1": first_name(gg["name1"]), "name2": first_name(gg["name2"]),
+        "efterfestens_namn": config.AFTERPARTY_NAME,
+        "tid1": config.ARRIVE_AFTERPARTY, "issy-adress": issy_addr,
+    }
+    return templates.render(templates.get_template_text("efterfest", 0), values)
 
 
 def group_messages(g, r, gmap, issy_addr):

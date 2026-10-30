@@ -4,6 +4,8 @@ cache/
 data/geocoded.json
 data/travel.json
 data/schedule.json
+data/baseline.json
+data/calibration.json
 web/data.json
 out/
 __pycache__/
@@ -14,3 +16,4 @@ data/participants.json
 data/participants.json.bak
 data/Grupper.xlsx
 data/*.xlsx
+data/send_log.json
