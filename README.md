@@ -276,6 +276,7 @@ Allt i `config.py`:
 | `ALCOHOL_DEFAULT` | texten som används när ett par inte angett någon alkoholpreferens. Ingen angiven preferens = paret vill ha alkohol |
 | `MODES` | `["walking","transit"]` – varje etapp kostas som den snabbaste av de två`["Driving", "Walking", "Bicycling", "Transit", "Two-Wheeler"]` kan väljas|
 | `ALPHA` | mjuk ringpreferens mot Issy-avstånd. 0 = strunt i ringrang, ~1 = default, ≥500 = exakt den gamla hårda splitten |
+| `LOCK_DESSERT_RING` | `True` (default): efterrättsringen (ring 2) låses hårt till den tredjedel par som har kortast restid till Issy – varje efterrättsvärd garanterat nära efterfesten. Förrätt vs varmrätt (ring 0/1) är fortfarande fri och optimeras på restid, oberoende av `ALPHA`. `False` = helt fri ringtilldelning som innan, styrd enbart av `ALPHA` |
 | `W_MEAN`, `W_TAIL`, `W_MAX`, `W_LEG` | målfunktionen: `W_MEAN·medel + W_TAIL·Σ max(0,T−T_TARGET)² + W_MAX·max + W_LEG·Σ max(0,etapp−LEG_CAP)² + W_HOST·Σ max(0,värdetapp−HOST_ARRIVE_CAP)² + ring_cost`. Ingen std – ensidiga straff |
 | `T_TARGET`, `SLACK` | `python3 solve.py --calibrate` minimerar först bara medelvärdet och sätter `T_TARGET = medel·(1+SLACK)` i `data/calibration.json` |
 | `LEG_CAP` | längsta enskilda etapp innan den straffas (40 min) |

@@ -48,7 +48,7 @@ SEED = 20261114
 # only has to chase the non-linear terms - needs fewer iterations than the old
 # pure-anneal search. 1.0M/8 is ~2 min; the old 1.6M was for a weaker search.
 ANNEAL_ITERS = 1_000_000
-RESTARTS = 8
+RESTARTS = 2
 
 # --- ring membership -------------------------------------------------------
 # Ring is now a decision variable: any pair may land in any ring, but each ring
@@ -67,6 +67,15 @@ RESTARTS = 8
 #   ALPHA ~ 50     -> ~2 outside
 #   ALPHA >= 500   -> 0 outside, i.e. exactly the old hard 21/21/21 split
 ALPHA = 1.0
+
+# Hard-pin ring 2 (dessert) to the N/3 pairs with the shortest travel time to
+# Issy, instead of leaving it as a free decision variable - every dessert
+# host is then guaranteed close to the afterparty. Ring 0 vs ring 1
+# (starter vs main) stays a free choice, still optimised for travel time
+# (with ALPHA's soft pull same as before). This is independent of ALPHA:
+# even ALPHA=0 keeps the dessert ring pinned if this is True, and cranking
+# ALPHA up no longer forces starter/main into the old hard split too.
+LOCK_DESSERT_RING = True
 
 # --- objective (all terms in minutes; std is gone on purpose) -------------
 # T_i = leg1 + leg2 + leg3   (starter->main, main->dessert, dessert->Issy)

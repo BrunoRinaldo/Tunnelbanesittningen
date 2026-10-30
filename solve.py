@@ -9,9 +9,12 @@ heuristic - it is guaranteed by construction. N must be an odd multiple of 3
 from the pair count and main() rejects any other N.
 
 Split the N pairs into three rings of R. Ring 0 hosts the starter, ring 1 the
-main, ring 2 the dessert. Which pair lands in which ring is now a DECISION
-VARIABLE (each ring still holds exactly R). Instead of the old hard split by
-travel time to Issy there is a soft pull, ring_cost in config.py.
+main, ring 2 the dessert. Which pair lands in which ring is a DECISION
+VARIABLE (each ring still holds exactly R), nudged by a soft pull, ring_cost
+in config.py. With config.LOCK_DESSERT_RING (default True), ring 2 is
+additionally hard-pinned to the R pairs closest to Issy - every dessert host
+is then guaranteed a short last leg - while ring 0 vs ring 1 stays free and
+is still optimised for travel time.
 
 Label the pairs in ring k as pk[0..R-1], indices in Z_R. For round
 r in {0=starter, 1=main, 2=dessert} the tables are
@@ -275,8 +278,12 @@ def anneal(perms, T1, T2, I, maps, w, rng, iters):
     for it in range(iters):
         temp = t0 * (t1 / t0) ** (it / max(iters, 1))
         if rng.random() < 0.35:
-            # cross-ring: swap a pair in ring k1 with a pair in ring k2
-            k1, k2 = rng.sample((0, 1, 2), 2)
+            # cross-ring: swap a pair in ring k1 with a pair in ring k2.
+            # Ring 2 (dessert) is excluded from cross-ring moves when
+            # LOCK_DESSERT_RING is set, so its membership never changes
+            # after initial() pins it - only its internal order does, via
+            # the within-ring swap branch below and lsap_alternate.
+            k1, k2 = (0, 1) if config.LOCK_DESSERT_RING else rng.sample((0, 1, 2), 2)
             i, j = rng.randrange(N_RING), rng.randrange(N_RING)
             perms[k1][i], perms[k2][j] = perms[k2][j], perms[k1][i]
             undo = ("x", k1, i, k2, j)
@@ -308,9 +315,22 @@ def anneal(perms, T1, T2, I, maps, w, rng, iters):
 
 # ---------------------------------------------------------------- drivers
 def initial(rng, I, restart):
-    """restart 0 = hard split by distance to Issy; others = random equal thirds."""
+    """restart 0 = hard split by distance to Issy; others = random equal thirds.
+
+    With config.LOCK_DESSERT_RING, ring 2 is always the Issy-closest third
+    (same set issy_rank_ring would pick) on every restart; only ring 0 vs
+    ring 1 varies."""
     ids = list(range(len(I)))
-    if restart == 0:
+    if config.LOCK_DESSERT_RING:
+        pref = issy_rank_ring(I)
+        dessert = [i for i in ids if pref[i] == 2]
+        rest = [i for i in ids if pref[i] != 2]
+        if restart == 0:
+            rest = sorted(rest, key=lambda i: -float(I[i]))
+        else:
+            rng.shuffle(rest)
+        rings = [rest[:N_RING], rest[N_RING:], dessert]
+    elif restart == 0:
         order = sorted(ids, key=lambda i: -float(I[i]))
         rings = [order[k * N_RING:(k + 1) * N_RING] for k in range(3)]
     else:
