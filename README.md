@@ -134,8 +134,8 @@ GOOGLE_BROWSER_KEY=AIza...
 |---|---|
 | Geocoding | 64 adresser, en gång (cachas) |
 | Distance Matrix – gång (63×63, tidsoberoende) | ~3 900 |
-| Distance Matrix – kollektivt (63×63 × ankomst 18:30 + 20:30) | ~6 900 |
-| Distance Matrix – alla→Issy (ankomst 22:00) | 63 |
+| Distance Matrix – kollektivt (63×63 × ankomst `ARRIVE_MAIN` + `ARRIVE_DESSERT`) | ~6 900 |
+| Distance Matrix – alla→Issy (ankomst `ARRIVE_AFTERPARTY`) | 63 |
 
 Sedan ringtillhörigheten blev en beslutsvariabel kan vilket par som helst hamna
 intill vilket som helst, så hela 63×63-matrisen hämtas. `travel.py` skriver ut
@@ -281,7 +281,7 @@ Allt i `config.py`:
 | | |
 |---|---|
 | `EVENT_DATE` | datum – styr kollektivtrafikens tidtabell |
-| `ARRIVE_STARTER/ARRIVE_MAIN/DESSERT/AFTERPARTY` | 17:00 / 18:30 / 20:30 / 22:00. Tiden då varje rätt ska påbörjas|
+| `ARRIVE_STARTER/ARRIVE_MAIN/DESSERT/AFTERPARTY` | Tiden då varje rätt ska påbörjas|
 | `REACHOUT_DATE` | datum (YYYY-MM-DD) som visas i *Dubbelkolla info*-meddelandet – sista dagen för paren att höra av sig om fel i adress/allergier/alkoholpreferens |
 | `MIN_TRAVEL_MIN` | par vars hem ligger närmare än så här många minuter (samma adress, samma kvarter) hamnar aldrig vid samma bord och ingen reser direkt mellan deras hem. 0 = av. `solve.py` skriver ut antalet brott, det ska vara 0 |
 | `ALCOHOL_DEFAULT` | texten som används när ett par inte angett någon alkoholpreferens. Ingen angiven preferens = paret vill ha alkohol |

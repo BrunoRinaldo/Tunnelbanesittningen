@@ -44,8 +44,8 @@ annars läcker gammal data in i den nya sittningen (importen varnar):
 
 - [x] `REACHOUT_DATE = "2026-11-08"` – deadline för deltagare att rapportera
   fel i Dubbelkolla-SMS:et.
-- [ ] `EVENT_DATE = "2026-11-14"` – rätt datum för i år?
-- [ ] `ARRIVE_STARTER/MAIN/DESSERT/AFTERPARTY` (17:00/18:30/20:30/22:00) –
+- [ ] `EVENT_DATE` – rätt datum för i år?
+- [ ] `ARRIVE_STARTER/MAIN/DESSERT/AFTERPARTY` –
   stämmer tiderna med årets upplägg?
 - [ ] `AFTERPARTY_ADDRESS` (Brinellvägen 23 – Issy) – rätt lokal bokad för
   i år, rätt adress?

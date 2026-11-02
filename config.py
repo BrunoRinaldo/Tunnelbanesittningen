@@ -42,8 +42,8 @@ MODES = ["walking", "transit"]
 
 # travel.py: with free ring membership any pair can end up next to any other, so
 # the full 63x63 matrix is fetched. Walking is time-independent (one matrix,
-# reused for both inter-home legs); transit is fetched for arrival 18:30 and
-# 20:30. Skip the transit call for a pair whose walk is already this short -
+# reused for both inter-home legs); transit is fetched for ARRIVE_MAIN and
+# ARRIVE_DESSERT. Skip the transit call for a pair whose walk is already this short -
 # transit can never beat it once waiting time is counted.
 TRANSIT_SKIP_MIN = 12
 

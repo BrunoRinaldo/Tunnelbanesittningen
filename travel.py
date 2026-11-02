@@ -10,8 +10,8 @@ event):
 
     walking            one NxN matrix, time-independent, reused for both
                        inter-home legs
-    transit  18:30     NxN, arrival = ARRIVE_MAIN   (leg starter -> main)
-    transit  20:30     NxN, arrival = ARRIVE_DESSERT (leg main -> dessert)
+    transit            NxN, arrival = ARRIVE_MAIN    (leg starter -> main)
+    transit            NxN, arrival = ARRIVE_DESSERT (leg main -> dessert)
     everyone -> Issy   N elements, arrival = ARRIVE_AFTERPARTY (leg 3)
 
 Pruning: the transit call is skipped for any pair whose walk time is already
@@ -168,7 +168,7 @@ def fill_holes(best, mode, pts_a, pts_b):
 
 
 def issy_times(pts, issy, key, cache, spend):
-    """min(walk, transit) minutes + mode for everyone -> Issy (arrive 22:00)."""
+    """min(walk, transit) minutes + mode for everyone -> the afterparty (arrive ARRIVE_AFTERPARTY)."""
     arr_issy = ts(config.ARRIVE_AFTERPARTY)
     iw = fetch_mode(pts, [issy], "walking", 0, key, cache, "->Issy walk", None, spend)
     it = fetch_mode(pts, [issy], "transit", arr_issy, key, cache, "->Issy transit", None, spend)
@@ -285,7 +285,7 @@ def main():
     print(f"Transit @ {config.ARRIVE_DESSERT} (main -> dessert) ...")
     tr_dess = fetch_mode(pts, pts, "transit", arr_dess, key, cache, "transit@dessert", transit_skip, spend)
 
-    print("Leg 3 (everyone -> Issy, arrive 22:00) ...")
+    print(f"Leg 3 (everyone -> {config.AFTERPARTY_NAME}, arrive {config.ARRIVE_AFTERPARTY}) ...")
     to_issy, to_issy_mode = issy_times(pts, issy, key, cache, spend)
 
     os.makedirs(os.path.dirname(CACHE), exist_ok=True)
