@@ -149,7 +149,7 @@ nyckelstruktur, så omkörningar och redan hämtade delmatriser kostar noll.
 ## 2. Kör
 
 ```bash
-python3 -m pip install openpyxl numpy scipy   # om de saknas
+python3 -m pip install openpyxl numpy scipy certifi    # om de saknas
 cp .env.example .env                           # fyll i nycklarna
 
 python3 import_participants.py Grupper.xlsx     # deltagarlistan -> data/participants.json (§0)

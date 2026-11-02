@@ -12,7 +12,7 @@ GOOGLE_SERVER_KEY = os.environ.get("GOOGLE_SERVER_KEY", "")
 GOOGLE_BROWSER_KEY = os.environ.get("GOOGLE_BROWSER_KEY", "")
 
 # ---------------------------------------------------------------- event
-EVENT_DATE = "2026-11-14"          # YYYY-MM-DD, used for transit departure/arrival times
+EVENT_DATE = "2026-11-13"          # YYYY-MM-DD, used for transit departure/arrival times
 TIMEZONE = "Europe/Stockholm"
 
 AFTERPARTY_NAME = "Issy"
@@ -20,9 +20,9 @@ AFTERPARTY_ADDRESS = "Brinellvägen 23, 114 28 Stockholm, Sweden"
 
 # Arrival deadlines (local time). Travel is costed as "arrive by".
 ARRIVE_STARTER = "17:00"           # informational only
-ARRIVE_MAIN = "18:30"
-ARRIVE_DESSERT = "20:30"
-ARRIVE_AFTERPARTY = "22:00"
+ARRIVE_MAIN = "18:45"
+ARRIVE_DESSERT = "20:45"
+ARRIVE_AFTERPARTY = "22:30"
 
 # Stockholm county. geocode.py prefers matches inside this box and flags any
 # result outside it, so widen it if the event ever moves. (lat, lng)
