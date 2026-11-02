@@ -11,9 +11,10 @@ Required: Namn 1, Namn 2, Adress, Telefonnummer 1 (the SMS goes there). Everythi
 else may be missing or blank. A pair without a Grupp-ID gets the lowest free number,
 so a sheet with no such column is numbered 1..N in row order.
 
-Extra columns (Tidstämpel, Övrigt) are ignored. Alkoholpreferenser is kept only
-when it is free text; a bare number from a form scale becomes blank (blank means
-"wants alcohol", see ALCOHOL_DEFAULT in config.py).
+Extra columns (Tidstämpel, Övrigt) are ignored. Alkoholpreferenser is how many in
+the pair drink alcohol: 0, 1 or 2 become the wording in ALCOHOL_BY_COUNT (config.py),
+any other number stops the import. Free text is kept as written, and blank means
+ALCOHOL_DEFAULT.
 
     python3 import_participants.py                     # reads data/Grupper.xlsx
     python3 import_participants.py path/to/svar.xlsx   # reads that file instead
@@ -26,6 +27,8 @@ data/send_log.json is a record of SMS actually sent, so it only gets a warning.
 import itertools, json, os, shutil, sys
 
 from openpyxl import load_workbook
+
+import config
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 DEFAULT_SRC = os.path.join(HERE, "data", "Grupper.xlsx")
@@ -64,9 +67,13 @@ def _text(v):
 
 
 def _alcohol(v):
-    """Free-text preference is kept; a bare number from a form scale is dropped."""
+    """0/1/2 -> wording from config, free text kept; raises ValueError on other numbers."""
     s = _text(v)
-    return "" if s.replace(".", "", 1).isdigit() else s
+    if s in config.ALCOHOL_BY_COUNT:
+        return config.ALCOHOL_BY_COUNT[s]
+    if s.replace(".", "", 1).isdigit():
+        raise ValueError(s)
+    return s
 
 
 def _normalised(people):
@@ -132,7 +139,11 @@ def main():
         for f in ("name1", "name2", "address_raw", "phone1", "phone2", "email"):
             rec[f] = _text(cell(f))
         rec["allergies"] = _text(cell("allergies"))
-        rec["alkoholpreferenser"] = _alcohol(cell("alkoholpreferenser"))
+        try:
+            rec["alkoholpreferenser"] = _alcohol(cell("alkoholpreferenser"))
+        except ValueError as e:
+            problems.append(f"  rad {n}: Alkoholpreferenser {e} ska vara 0, 1, 2 eller fritext")
+            continue
 
         empty = [f for f in REQUIRED if not rec[f]]
         if empty:
@@ -185,7 +196,7 @@ def main():
     n_alk = sum(1 for p in people if p["alkoholpreferenser"])
     print(f"\n{len(people)} par -> data/participants.json"
           + (" (gammal fil sparad som participants.json.bak)" if os.path.exists(OUT + ".bak") else ""))
-    print(f"  {n_al} med allergianmärkning, {n_alk} med alkoholpreferens i fritext")
+    print(f"  {n_al} med allergianmärkning, {n_alk} med angiven alkoholpreferens")
     print("Kör vidare med:  python3 run.py")
 
 

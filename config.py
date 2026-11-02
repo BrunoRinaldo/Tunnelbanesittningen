@@ -31,8 +31,10 @@ GEO_BOUNDS = ((58.85, 17.25), (59.85, 19.00))
 # ---------------------------------------------------------------- messaging (export.py)
 # Deadline shown in the "dubbelkolla info" SMS for guests to report errors.
 REACHOUT_DATE = "2026-11-08"      # YYYY-MM-DD
+# The sheet's Alkoholpreferenser is how many in the pair drink alcohol.
+ALCOHOL_BY_COUNT = {"0": "Två alkfri", "1": "En alkfri, en alkfull", "2": "Två alkfull"}
 # No stated alcohol preference means the pair wants alcohol - that is the default.
-ALCOHOL_DEFAULT = "Alkohol!!!"
+ALCOHOL_DEFAULT = ALCOHOL_BY_COUNT["2"]
 
 # ---------------------------------------------------------------- routing
 # Travel cost = min(walking, transit) for each leg.

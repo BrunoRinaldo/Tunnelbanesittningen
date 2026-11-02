@@ -44,7 +44,7 @@ roll och rubrikernas versaler/mellanslag på slutet ignoreras. Extra kolumner
 | `Telefonnummer 2` | frivilligt | samma format. Visas bara i exporterna |
 | `Mailadress` | frivilligt | en adress för paret. Visas bara i exporterna |
 | `Allergier` | frivilligt | fritext. Tom = inga allergier |
-| `Alkoholpreferenser` | frivilligt | fritext. Tom = paret vill ha alkohol (se `ALCOHOL_DEFAULT` i `config.py`). En ensam siffra från en formulärskala räknas som tom |
+| `Alkoholpreferenser` | frivilligt | hur många i paret som dricker alkohol: `0` = Två alkfri, `1` = En alkfri, en alkfull, `2` = Två alkfull (`ALCOHOL_BY_COUNT` i `config.py`). Fritext används som den står, tom = Två alkfull. Andra siffror stoppar importen |
 
 Antal par: den här sittningen är gjord för **63 par (126 personer)**, men koden
 räknar ringstorleken från antalet. Kravet är att antalet par är en **udda

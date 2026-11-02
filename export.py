@@ -201,10 +201,8 @@ def course_message(g, r, gmap, course, issy_addr):
         values["gästallergier"] = _guest_block(al)
         prefs = []
         for i in stop["co"]:
-            p = _clean_note(gmap[i].get("alkoholpreferenser")) or config.ALCOHOL_DEFAULT
-            if p not in prefs:
-                prefs.append(p)
-        values["gästalkohol"] = prefs[0] if len(prefs) == 1 else "\n".join(f"- {p}" for p in prefs)
+            prefs.append(alcohol_of(gmap[i]))
+        values["gästalkohol"] = "\n".join(f"- {p}" for p in prefs)
     else:
         values["tid1"] = stop["arrive"]
         values["värd_adress"] = _addr(gmap, stop["host"])
