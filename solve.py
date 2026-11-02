@@ -51,6 +51,10 @@ the exact optimum is out of reach. Three layers:
     driven to zero and then kept there.
  3. Multi-restart, SEED in config.py, so runs reproduce.
 
+Homes closer than MIN_TRAVEL_MIN are kept apart the same way: neither at one
+table nor as the two ends of a leg. Every such term couples two different rings,
+so it is separable in the exact layer too, and the anneal refuses moves adding one.
+
 The host-arrival term (W_HOST * sum max(0, arrival_leg - HOST_ARRIVE_CAP)^2)
 is separable once the other two rings are fixed - the main host's arrival
 depends only on which pair sits beside them in ring 0, the dessert host's only
@@ -106,21 +110,27 @@ def build_index_maps():
 class W:
     """Objective weights."""
     def __init__(self, w_mean, w_tail, w_max, w_leg, alpha, t_target, leg_cap,
-                 w_host=0.0, host_cap=math.inf):
+                 w_host=0.0, host_cap=math.inf, close=None, w_close=0.0):
         self.w_mean, self.w_tail, self.w_max = w_mean, w_tail, w_max
         self.w_leg, self.alpha = w_leg, alpha
         self.t_target, self.leg_cap = t_target, leg_cap
         self.w_host, self.host_cap = w_host, host_cap
+        self.close, self.w_close = close, w_close
+        self.seats = None if close is None or not close.any() else meeting_seats(build_index_maps())
+
+    def close_count(self, perms):
+        return 0 if self.seats is None else close_meetings(perms, self.seats, self.close)
 
     @classmethod
-    def from_config(cls, t_target):
+    def from_config(cls, t_target, close):
         return cls(config.W_MEAN, config.W_TAIL, config.W_MAX, config.W_LEG,
                    config.ALPHA, t_target, config.LEG_CAP,
-                   config.W_HOST, config.HOST_ARRIVE_CAP)
+                   config.W_HOST, config.HOST_ARRIVE_CAP, close, config.W_MIN_TRAVEL)
 
     @classmethod
-    def mean_only(cls):
-        return cls(1.0, 0.0, 0.0, 0.0, 0.0, math.inf, math.inf)
+    def mean_only(cls, close):
+        return cls(1.0, 0.0, 0.0, 0.0, 0.0, math.inf, math.inf,
+                   close=close, w_close=config.W_MIN_TRAVEL)
 
 
 def per_pair(p0, p1, p2, T1, T2, I, maps):
@@ -150,6 +160,43 @@ def host_arrive_legs(perms, T1, T2, maps):
     _, b2, c2 = maps[2]
     dess_leg = T2[p1[b2], p2[c2]]
     return np.concatenate([main_leg, dess_leg])
+
+
+def close_homes(T1, T2):
+    """Symmetric bool matrix: homes less than MIN_TRAVEL_MIN apart in any direction."""
+    m = config.MIN_TRAVEL_MIN
+    close = (T1 < m) | (T2 < m)
+    close = close | close.T
+    np.fill_diagonal(close, False)
+    return close
+
+
+def meeting_seats(maps):
+    """Seats that must not be close homes, as (ring a, idx a, ring b, idx b) arrays.
+
+    Covers everyone at one table in any round, and both ends of every leg.
+    """
+    x = np.arange(N_RING)
+    seats = {(0, 1): [], (0, 2): [], (1, 2): []}
+    for r in range(3):
+        s, m, d = x, (x + r) % N_RING, (2 * x + r) % N_RING
+        seats[(0, 1)].append((s, m))
+        seats[(0, 2)].append((s, d))
+        seats[(1, 2)].append((m, d))
+    for k in range(3):
+        s, m, d = maps[k]
+        seats[(0, 1)].append((s, m))
+        seats[(1, 2)].append((m, d))
+    out = []
+    for (ka, kb), pairs in seats.items():
+        u = np.unique(np.concatenate([np.stack(p, axis=1) for p in pairs]), axis=0)
+        out.append((ka, u[:, 0], kb, u[:, 1]))
+    return out
+
+
+def close_meetings(perms, seats, close):
+    """Number of seat pairs that put two close homes together."""
+    return sum(int(close[perms[ka][ia], perms[kb][ib]].sum()) for ka, ia, kb, ib in seats)
 
 
 def host_penalty(perms, T1, T2, maps, w):
@@ -208,6 +255,7 @@ def cost_value(perms, T1, T2, I, maps, w):
            + w.w_max * float(t.max())
            + w.w_leg * legsq
            + host_penalty(perms, T1, T2, maps, w)
+           + w.w_close * w.close_count(perms)
            + ring_cost(perms, I, w.alpha))
     return val, t
 
@@ -242,7 +290,8 @@ def lsap_ring(perms, k, T1, T2, I, maps, w):
         orig = col[li]
         for ai, a in enumerate(ring_pairs):
             col[li] = a
-            C[ai, li] = travel_sum(*pp, T1, T2, I, maps) + host_penalty(pp, T1, T2, maps, w)
+            C[ai, li] = (travel_sum(*pp, T1, T2, I, maps) + host_penalty(pp, T1, T2, maps, w)
+                         + w.w_close * w.close_count(pp))
         col[li] = orig
     assert not np.isnan(C).any(), "cost matrix not fully populated"
     rows, cols = linear_sum_assignment(C)
@@ -272,7 +321,7 @@ def lsap_alternate(perms, T1, T2, I, maps, w, rounds=8):
 # cost_value (no per-leg array built) keeps it simple and correct.
 def anneal(perms, T1, T2, I, maps, w, rng, iters):
     cur, _ = cost_value(perms, T1, T2, I, maps, w)
-    cur_hv = host_over_cap(perms, T1, T2, maps, w)
+    cur_hv = (w.close_count(perms), host_over_cap(perms, T1, T2, maps, w))
     best, best_hv, best_perms = cur, cur_hv, [p.copy() for p in perms]
     t0, t1 = 6.0, 0.02
     for it in range(iters):
@@ -295,13 +344,13 @@ def anneal(perms, T1, T2, I, maps, w, rng, iters):
             perms[k][i], perms[k][j] = perms[k][j], perms[k][i]
             undo = ("s", k, i, k, j)
         new, _ = cost_value(perms, T1, T2, I, maps, w)
-        new_hv = host_over_cap(perms, T1, T2, maps, w)
+        new_hv = (w.close_count(perms), host_over_cap(perms, T1, T2, maps, w))
         # draw unconditionally so rng consumption per iteration is fixed - a
         # floating-point tie on `new <= cur` must not shift the whole stream
         roll = rng.random()
-        # lexicographic: refuse any move that adds a host over the cap, always
-        # take one that removes one, otherwise ordinary SA on the cost. With
-        # host_cap = inf (calibration) new_hv == cur_hv == 0 and this is a no-op.
+        # lexicographic on (close homes together, hosts over the cap): refuse any
+        # move that makes that worse, always take one that improves it, otherwise
+        # ordinary SA on the cost. No close homes and host_cap = inf: a no-op.
         if new_hv < cur_hv or (new_hv == cur_hv
                                and (new <= cur or roll < math.exp((cur - new) / temp))):
             cur, cur_hv = new, new_hv
@@ -417,7 +466,7 @@ def issy_rank_ring(I):
     return pref
 
 
-def metrics(perms, T1, T2, I, maps):
+def metrics(perms, T1, T2, I, maps, close):
     t, legs = per_pair(*perms, T1, T2, I, maps)
     ring_of = {}
     for k in range(3):
@@ -435,6 +484,7 @@ def metrics(perms, T1, T2, I, maps):
         "ring_violations": int(viol),
         "host_arrive_max": float(hal.max()),
         "host_over_cap": int(np.sum(hal > config.HOST_ARRIVE_CAP)),
+        "close_meetings": close_meetings(perms, meeting_seats(maps), close),
     }
 
 
@@ -446,6 +496,7 @@ def print_table(before, after):
         (f"legs over LEG_CAP ({config.LEG_CAP:.0f})", "legs_over_cap"),
         ("longest host-arrival leg (min)", "host_arrive_max"),
         (f"hosts over HOST_ARRIVE_CAP ({config.HOST_ARRIVE_CAP:.0f})", "host_over_cap"),
+        (f"homes < {config.MIN_TRAVEL_MIN:.0f} min apart together", "close_meetings"),
         ("ring-order violations", "ring_violations"),
     ]
     print("\n  ================ before / after ================")
@@ -525,12 +576,14 @@ def main():
 
     trv, T1, T2, walk, I, mode1, mode2, issy_modes = load_travel(N)
     maps = build_index_maps()
+    close = close_homes(T1, T2)
+    print(f"  homes closer than {config.MIN_TRAVEL_MIN:.0f} min: {int(close.sum()) // 2} combinations kept apart")
 
     # ---------------------------------------------------------------- calibrate
     if args.calibrate:
         import random
         rng = random.Random(config.SEED)
-        w = W.mean_only()
+        w = W.mean_only(close)
         # Minimise mean(T) over the SAME feasible space the real solver uses
         # (free rings, cross-ring moves), so T_TARGET is anchored to a mean that
         # is actually reachable - an LSAP-only pass under-shoots it.
@@ -556,7 +609,7 @@ def main():
         t_target = float(config.T_TARGET)
         print(f"  T_TARGET = {t_target:.1f} min  (config.py fallback - run --calibrate)")
 
-    w = W.from_config(t_target)
+    w = W.from_config(t_target, close)
 
     import random
     rng = random.Random(config.SEED)
@@ -577,13 +630,13 @@ def main():
         json.dump({"source": src, "seed": config.SEED,
                    "perms": [[int(v) for v in p] for p in base_perms]},
                   open(BASELINE, "w"), indent=1)
-    before = metrics(base_perms, T1, T2, I, maps)
+    before = metrics(base_perms, T1, T2, I, maps, close)
 
     # ---------------------------------------------------------------- new search
     print("\n  new search (free rings, one-sided objective) ...")
     best_obj, best = search(T1, T2, I, w, rng, config.ANNEAL_ITERS, config.RESTARTS)
     p0, p1, p2 = best
-    after = metrics(best, T1, T2, I, maps)
+    after = metrics(best, T1, T2, I, maps, close)
     t_all, _ = per_pair(p0, p1, p2, T1, T2, I, maps)
 
     pref = issy_rank_ring(I)
@@ -605,6 +658,13 @@ def main():
     else:
         print(f"  every host reaches their own course in <= {config.HOST_ARRIVE_CAP:.0f} min "
               f"(longest {after['host_arrive_max']:.1f})")
+
+    if after["close_meetings"] > 0:
+        print(f"\n  !!! WARNING: {after['close_meetings']} meeting(s) or leg(s) between homes less "
+              f"than {config.MIN_TRAVEL_MIN:.0f} min apart.\n"
+              f"      Re-run with a new SEED or lower MIN_TRAVEL_MIN before sending anything out.")
+    else:
+        print(f"  no homes closer than {config.MIN_TRAVEL_MIN:.0f} min share a table or a leg")
 
     pos = [{int(v): x for x, v in enumerate(p)} for p in (p0, p1, p2)]
 
@@ -743,6 +803,7 @@ def main():
                       "legs_over_cap": after["legs_over_cap"],
                       "host_arrive_max": after["host_arrive_max"],
                       "host_over_cap": after["host_over_cap"],
+                      "close_meetings": after["close_meetings"],
                       "ring_violations": after["ring_violations"],
                       "objective": float(best_obj)},
             "baseline": before,

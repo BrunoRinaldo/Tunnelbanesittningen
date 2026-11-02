@@ -1,4 +1,4 @@
-"""One-shot pipeline: geocode -> review map (waits for OK) -> travel times -> calibrate -> solve -> export.
+"""One-shot pipeline: geocode -> travel times -> calibrate -> solve -> export.
 
     python3 run.py              # real Google APIs (needs .env); spends money on
                                 # the full 63x63 matrix - travel.py prints the
@@ -35,10 +35,7 @@ if missing:
 
 def step(title, cmd):
     print(f"\n=== {title} " + "=" * (60 - len(title)))
-    try:
-        r = subprocess.run([sys.executable] + cmd)
-    except KeyboardInterrupt:
-        sys.exit(f"\naborted at: {title}")
+    r = subprocess.run([sys.executable] + cmd)
     if r.returncode != 0:
         sys.exit(f"\nfailed at: {title}")
 
@@ -46,15 +43,14 @@ def step(title, cmd):
 PARTS_JSON = os.path.join(HERE, "data", "participants.json")
 src = PARTICIPANTS or os.path.join(HERE, "data", "Grupper.xlsx")
 if PARTICIPANTS or os.path.exists(src) or not os.path.exists(PARTS_JSON):
-    step("0/6  Deltagarlista", ["import_participants.py", src])
+    step("0/5  Deltagarlista", ["import_participants.py", src])
 else:
     print("data/Grupper.xlsx saknas - använder befintlig data/participants.json")
 
-step("1/6  Geocoding", ["geocode.py"] + (["--fallback"] if DRY else []))
-step("2/6  Kontrollkarta", ["review_map.py"] + ([] if HAVERSINE else ["--yes"]))
-step("3/6  Restider", ["travel.py"] + (["--haversine"] if HAVERSINE else ["--yes"]))
-step("4/6  Kalibrering", ["solve.py", "--calibrate"])
-step("5/6  Schemaläggning", ["solve.py"])
-step("6/6  Export", ["export.py"])
+step("1/5  Geocoding", ["geocode.py"] + (["--fallback"] if DRY else []))
+step("2/5  Restider", ["travel.py"] + (["--haversine"] if HAVERSINE else ["--yes"]))
+step("3/5  Kalibrering", ["solve.py", "--calibrate"])
+step("4/5  Schemaläggning", ["solve.py"])
+step("5/5  Export", ["export.py"])
 
 print("\nKlart. Starta kartan med:  python3 serve.py")

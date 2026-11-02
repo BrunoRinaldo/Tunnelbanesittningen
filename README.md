@@ -161,12 +161,7 @@ python3 serve.py         # kartan på http://localhost:8000
 `run.py` kör importsteget åt dig varje gång, från `data/Grupper.xlsx` eller med
 `python3 run.py --participants Grupper.xlsx`.
 
-Efter geokodningen öppnar `run.py` ett kartfönster med alla par och deras restid
-till Issy. Tryck **OK** så fortsätter körningen, eller Ctrl+C i terminalen för att
-avbryta och rätta en adress. Google-restiderna till Issy (2 element per par) hämtas
-redan här och återanvänds från cachen av `travel.py`.
-
-Stegen var för sig: `import_participants.py`, `geocode.py`, `review_map.py --yes`, `travel.py --yes`,
+Stegen var för sig: `import_participants.py`, `geocode.py`, `travel.py --yes`,
 `solve.py --calibrate`, `solve.py`, `export.py`. `solve.py` skriver ut en
 före/efter-tabell (medel, std,
 p50, p90, max, längsta etapp, etapper över `LEG_CAP`, längsta värdetapp,
@@ -288,6 +283,7 @@ Allt i `config.py`:
 | `EVENT_DATE` | datum – styr kollektivtrafikens tidtabell |
 | `ARRIVE_STARTER/ARRIVE_MAIN/DESSERT/AFTERPARTY` | 17:00 / 18:30 / 20:30 / 22:00. Tiden då varje rätt ska påbörjas|
 | `REACHOUT_DATE` | datum (YYYY-MM-DD) som visas i *Dubbelkolla info*-meddelandet – sista dagen för paren att höra av sig om fel i adress/allergier/alkoholpreferens |
+| `MIN_TRAVEL_MIN` | par vars hem ligger närmare än så här många minuter (samma adress, samma kvarter) hamnar aldrig vid samma bord och ingen reser direkt mellan deras hem. 0 = av. `solve.py` skriver ut antalet brott, det ska vara 0 |
 | `ALCOHOL_DEFAULT` | texten som används när ett par inte angett någon alkoholpreferens. Ingen angiven preferens = paret vill ha alkohol |
 | `MODES` | `["walking","transit"]` – varje etapp kostas som den snabbaste av de två`["Driving", "Walking", "Bicycling", "Transit", "Two-Wheeler"]` kan väljas|
 | `ALPHA` | mjuk ringpreferens mot Issy-avstånd. 0 = strunt i ringrang, ~1 = default, ≥500 = exakt den gamla hårda splitten |

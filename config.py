@@ -113,6 +113,16 @@ LEG_CAP = 40.0
 HOST_ARRIVE_CAP = 30.0
 W_HOST = 8.0
 
+# --- minimum distance between homes --------------------------------------
+# Two pairs whose homes are less than this many minutes apart (same address,
+# same block) never share a table and no one travels directly between their
+# homes. Pairs in the same ring never meet, so neighbours can always be separated
+# by ring. Enforced like the host cap: the annealer refuses any move that adds a
+# violation, and W_MIN_TRAVEL keeps the exact linear layer from adding one. The
+# solver prints the count; it must be 0 before you send anything out. 0 = off.
+MIN_TRAVEL_MIN = 5.0
+W_MIN_TRAVEL = 1000.0
+
 # T_TARGET is calibrated, not guessed: `python3 solve.py --calibrate` first
 # minimises mean(T) alone, then writes T_TARGET = that mean * (1 + SLACK) to
 # data/calibration.json. The value below is only the fallback when that file is

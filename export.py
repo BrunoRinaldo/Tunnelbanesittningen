@@ -309,6 +309,8 @@ def main():
         (f"Värdar över {round(sch['meta'].get('host_arrive_cap', 0))} min till egen rätt "
          f"(måste hinna laga mat)",
          _b("host_over_cap"), st.get("host_over_cap", 0)),
+        (f"Hem närmare än {config.MIN_TRAVEL_MIN:.0f} min som möts",
+         _b("close_meetings"), st.get("close_meetings", 0)),
         (f"Ringordningsbrott (par utanför {config.AFTERPARTY_NAME}-rang-ring)",
          _b("ring_violations"), st.get("ring_violations", 0)),
         ("T_TARGET (min)", "", round(sch["meta"].get("t_target", 0), 1)),
