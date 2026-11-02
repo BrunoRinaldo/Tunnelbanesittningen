@@ -7,6 +7,10 @@ the raw Google Forms export, Swedish column headers, one row per pair:
     Tidstämpel | Grupp-ID | Namn 1 | Namn 2 | Adress | Telefonnummer 1 |
     Telefonnummer 2 | Mailadress | Allergier | Alkoholpreferenser | Övrigt
 
+Required: Namn 1, Namn 2, Adress, Telefonnummer 1 (the SMS goes there). Everything
+else may be missing or blank. A pair without a Grupp-ID gets the lowest free number,
+so a sheet with no such column is numbered 1..N in row order.
+
 Extra columns (Tidstämpel, Övrigt) are ignored. Alkoholpreferenser is kept only
 when it is free text; a bare number from a form scale becomes blank (blank means
 "wants alcohol", see ALCOHOL_DEFAULT in config.py).
@@ -15,14 +19,23 @@ when it is free text; a bare number from a form scale becomes blank (blank means
     python3 import_participants.py path/to/svar.xlsx   # reads that file instead
 
 An existing data/participants.json is copied to .json.bak before it is replaced.
+If the participants changed, everything generated from the old list is deleted
+(DERIVED below), so a map or sendout can never show the previous people's data.
+data/send_log.json is a record of SMS actually sent, so it only gets a warning.
 """
-import json, os, shutil, sys
+import itertools, json, os, shutil, sys
 
 from openpyxl import load_workbook
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 DEFAULT_SRC = os.path.join(HERE, "data", "Grupper.xlsx")
 OUT = os.path.join(HERE, "data", "participants.json")
+SEND_LOG = os.path.join(HERE, "data", "send_log.json")
+DERIVED = [os.path.join(HERE, *p) for p in (
+    ("data", "geocoded.json"), ("data", "travel.json"), ("data", "schedule.json"),
+    ("data", "baseline.json"), ("data", "calibration.json"), ("web", "data.json"),
+    ("out", "tunnelbanesittning.xlsx"), ("out", "meddelanden.csv"), ("out", "schema.csv"),
+)]
 
 # Accepted header -> field name. Keys are lowercased and stripped before lookup,
 # so trailing spaces and capitalisation in the sheet do not matter. The field
@@ -38,8 +51,7 @@ HEADER_MAP = {
     "allergier": "allergies", "allergies": "allergies",
     "alkoholpreferenser": "alkoholpreferenser",
 }
-REQUIRED = ["group_id", "name1", "name2", "address_raw", "phone1", "phone2", "email"]
-OPTIONAL = ["allergies", "alkoholpreferenser"]
+REQUIRED = ["name1", "name2", "address_raw", "phone1"]
 
 
 def _text(v):
@@ -55,6 +67,23 @@ def _alcohol(v):
     """Free-text preference is kept; a bare number from a form scale is dropped."""
     s = _text(v)
     return "" if s.replace(".", "", 1).isdigit() else s
+
+
+def _normalised(people):
+    """Comparable form: runs of whitespace are not a change in the list."""
+    return [{k: " ".join(v.split()) if isinstance(v, str) else v for k, v in p.items()}
+            for p in people]
+
+
+def _clear_derived():
+    removed = [p for p in DERIVED if os.path.exists(p)]
+    for p in removed:
+        os.remove(p)
+    if removed:
+        print(f"  deltagarlistan ändrad: {len(removed)} genererade filer från den gamla listan borttagna")
+    if os.path.exists(SEND_LOG):
+        print(f"  VARNING: {os.path.relpath(SEND_LOG, HERE)} hör till den gamla listan och är nyckel:ad på "
+              "Grupp-ID.\n  Radera den om det är en ny sittning, annars visas nya par som redan kontaktade.")
 
 
 def main():
@@ -87,15 +116,17 @@ def main():
             return row[i] if i is not None and i < len(row) else None
 
         gid_raw = _text(cell("group_id"))
-        try:
-            gid = int(float(gid_raw))
-        except ValueError:
-            problems.append(f"  rad {n}: Grupp-ID {gid_raw!r} är inte ett heltal")
-            continue
-        if gid in seen:
-            problems.append(f"  rad {n}: Grupp-ID {gid} finns redan på rad {seen[gid]}")
-            continue
-        seen[gid] = n
+        gid = None
+        if gid_raw:
+            try:
+                gid = int(float(gid_raw))
+            except ValueError:
+                problems.append(f"  rad {n}: Grupp-ID {gid_raw!r} är inte ett heltal")
+                continue
+            if gid in seen:
+                problems.append(f"  rad {n}: Grupp-ID {gid} finns redan på rad {seen[gid]}")
+                continue
+            seen[gid] = n
 
         rec = {"group_id": gid}
         for f in ("name1", "name2", "address_raw", "phone1", "phone2", "email"):
@@ -105,9 +136,14 @@ def main():
 
         empty = [f for f in REQUIRED if not rec[f]]
         if empty:
-            problems.append(f"  rad {n} (grupp {gid}): tomt fält {', '.join(empty)}")
+            problems.append(f"  rad {n}: tomt fält {', '.join(empty)}")
             continue
         people.append(rec)
+
+    free = (i for i in itertools.count(1) if i not in seen)
+    for p in people:
+        if p["group_id"] is None:
+            p["group_id"] = next(free)
 
     people.sort(key=lambda p: p["group_id"])
     ids = [p["group_id"] for p in people]
@@ -130,9 +166,6 @@ def main():
         warn.append(f"{n} par ger ringar om {n // 3} (jämnt); ringstorleken måste vara udda "
                     f"annars kan par mötas två gånger - prova {n - 3} eller {n + 3} par. "
                     f"solve.py kommer att vägra")
-    elif n != 63:
-        warn.append(f"{n} par ({n * 2} personer) - fungerar med konstruktionen, men "
-                    f"sittningen är ursprungligen gjord för 63")
     if ids != list(range(1, len(ids) + 1)):
         gaps = sorted(set(range(1, ids[-1] + 1)) - set(ids))
         warn.append(f"Grupp-ID inte 1..{len(ids)} i följd; hål: {gaps or 'inga'}, högsta: {ids[-1]}")
@@ -141,6 +174,10 @@ def main():
 
     if os.path.exists(OUT):
         shutil.copyfile(OUT, OUT + ".bak")
+        if _normalised(json.load(open(OUT, encoding="utf-8"))) != _normalised(people):
+            _clear_derived()
+    else:
+        _clear_derived()
     with open(OUT, "w", encoding="utf-8") as f:
         json.dump(people, f, ensure_ascii=False, indent=1)
 

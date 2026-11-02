@@ -1,0 +1,186 @@
+<!doctype html>
+<html lang="sv">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Tunnelbanesittning – kontrollera adresser</title>
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"
+      integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY=" crossorigin="">
+<style>
+  :root{
+    --issy:#0E9F6E;
+    --bg:#0f1419; --panel:#161c23; --line:#26303a; --txt:#e6edf3; --dim:#8b98a5;
+  }
+  *{box-sizing:border-box}
+  html,body{height:100%;margin:0}
+  body{font:13px/1.5 -apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;
+       background:var(--bg);color:var(--txt);display:flex;overflow:hidden}
+  #side{width:380px;min-width:380px;height:100vh;display:flex;flex-direction:column;
+        background:var(--panel);border-right:1px solid var(--line)}
+  #map{flex:1;height:100vh}
+  h1{font-size:15px;margin:0 0 2px;letter-spacing:.2px}
+  .sub{color:var(--dim);font-size:11px}
+  .pad{padding:14px 16px;border-bottom:1px solid var(--line)}
+  .stats{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-top:10px}
+  .stat{background:#1d242c;border:1px solid var(--line);border-radius:6px;padding:7px 8px}
+  .stat b{display:block;font-size:15px;font-weight:600}
+  .stat span{color:var(--dim);font-size:10px;text-transform:uppercase;letter-spacing:.4px}
+  .legend{display:flex;gap:12px;flex-wrap:wrap;margin-top:10px;font-size:11px}
+  .legend i{width:9px;height:9px;border-radius:50%;display:inline-block;margin-right:5px}
+  #list{flex:1;overflow-y:auto;padding:6px 8px}
+  .r{display:flex;gap:10px;padding:6px 8px;border-radius:6px;cursor:pointer;width:100%;
+     background:none;border:0;color:inherit;font:inherit;text-align:left;
+     font-variant-numeric:tabular-nums}
+  .r:hover,.r:focus-visible{background:#1d242c;outline:none}
+  .r .dot{width:9px;height:9px;border-radius:50%;margin-top:5px;flex:none}
+  .r .who{flex:1;min-width:0}
+  .r .nn,.r .ad{display:block;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  .r .ad{color:var(--dim);font-size:11px}
+  .r .warn{color:#f0b429;font-size:11px;display:block}
+  .r .tt{text-align:right;flex:none}
+  .r .tt b{display:block;font-weight:600}
+  .r .tt span{color:var(--dim);font-size:11px}
+  #foot{padding:12px 16px;border-top:1px solid var(--line)}
+  #ok{width:100%;padding:10px;border:0;border-radius:6px;background:var(--issy);color:#fff;
+      font:600 14px/1.2 inherit;cursor:pointer}
+  #ok:hover{filter:brightness(1.1)}
+  #ok:disabled{opacity:.6;cursor:default}
+  #done{display:none;position:fixed;inset:0;z-index:2000;background:var(--bg);
+        align-items:center;justify-content:center;font-size:15px}
+  .leaflet-popup-content{font:13px/1.45 -apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif}
+</style>
+</head>
+<body>
+<div id="side">
+  <div class="pad">
+    <h1>Kontrollera adresser</h1>
+    <div class="sub" id="sub">Laddar ...</div>
+    <div class="stats" id="stats"></div>
+    <div class="legend" id="legend"></div>
+  </div>
+  <div id="list"></div>
+  <div id="foot"><button id="ok" autofocus>OK – fortsätt</button></div>
+</div>
+<div id="map"></div>
+<div id="done">Klart – skriptet fortsätter. Du kan stänga det här fönstret.</div>
+
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"
+        integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo=" crossorigin=""></script>
+<script>
+const BANDS = [
+  {max: 20, color: "#2e9e6b", label: "≤ 20 min"},
+  {max: 35, color: "#e0b020", label: "20–35"},
+  {max: 50, color: "#e8743b", label: "35–50"},
+  {max: Infinity, color: "#c0392b", label: "> 50"},
+];
+const MODES = {walking: "gång", transit: "kollektivt"};
+const color = m => BANDS.find(b => m <= b.max).color;
+
+function el(tag, cls, text) {
+  const e = document.createElement(tag);
+  if (cls) e.className = cls;
+  if (text !== undefined) e.textContent = text;
+  return e;
+}
+
+function popup(p) {
+  const d = el("div");
+  d.append(el("b", "", `${p.id}. ${p.names}`), el("br"), p.address, el("br"),
+           `${timeText(p)} (${MODES[p.mode] || p.mode}), ${p.km} km fågelväg`);
+  return d;
+}
+
+const timeText = p => `${p.estimate ? "≈ " : ""}${Math.round(p.min)} min`;
+
+async function init() {
+  const data = await (await fetch("data.json")).json();
+  const pairs = data.pairs.slice().sort((a, b) => b.min - a.min);
+  const estimates = pairs.filter(p => p.estimate).length;
+
+  document.getElementById("sub").textContent =
+    `${pairs.length} par, restid till ${data.issy.name} (framme ${data.arrive}), längst först` +
+    (estimates ? `. ≈ = uppskattat (${estimates} st)` : "");
+
+  const mean = pairs.reduce((s, p) => s + p.min, 0) / pairs.length;
+  const stats = document.getElementById("stats");
+  [["Medel", `${Math.round(mean)} min`], ["Längst", `${Math.round(pairs[0].min)} min`],
+   ["Längst bort", `${Math.max(...pairs.map(p => p.km))} km`]].forEach(([k, v]) => {
+    const s = el("div", "stat");
+    s.append(el("b", "", v), el("span", "", k));
+    stats.append(s);
+  });
+
+  const legend = document.getElementById("legend");
+  BANDS.forEach(b => {
+    const s = el("span");
+    const dot = el("i");
+    dot.style.background = b.color;
+    s.append(dot, b.label);
+    legend.append(s);
+  });
+
+  // Leaflet comes from a CDN: without it the list and the OK button still work.
+  const map = window.L ? L.map("map") : null;
+  if (map) {
+    L.tileLayer("https://tile.openstreetmap.org/{z}/{x}/{y}.png", {
+      maxZoom: 19,
+      attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>',
+    }).addTo(map);
+  } else {
+    document.getElementById("map").textContent = "Kartan kunde inte laddas (inget nät?).";
+  }
+
+  const issy = [data.issy.lat, data.issy.lng];
+  const list = document.getElementById("list");
+  const points = [issy];
+  pairs.forEach(p => {
+    const pos = [p.lat, p.lng];
+    points.push(pos);
+    const marker = map && L.circleMarker(pos, {
+      radius: 7, weight: 1.5, color: "#1b2229", fillColor: color(p.min), fillOpacity: .95,
+    }).addTo(map).bindPopup(() => popup(p));
+
+    const row = el("button", "r");
+    const dot = el("span", "dot");
+    dot.style.background = color(p.min);
+    const who = el("span", "who");
+    who.append(el("span", "nn", `${p.id}. ${p.names}`), el("span", "ad", p.address));
+    if (p.approx) who.append(el("span", "warn", "⚠ ungefärlig position, kontrollera"));
+    const tt = el("span", "tt");
+    tt.append(el("b", "", timeText(p)), el("span", "", `${p.km} km`));
+    row.append(dot, who, tt);
+    if (map) row.onclick = () => { map.setView(pos, Math.max(map.getZoom(), 14)); marker.openPopup(); };
+    list.append(row);
+  });
+  if (!map) return;
+
+  const issyDiv = el("div");
+  issyDiv.append(el("b", "", data.issy.name), el("br"), data.issy.address);
+  L.circleMarker(issy, {
+    radius: 11, weight: 3, color: "#fff", fillColor: "#0E9F6E", fillOpacity: 1,
+  }).addTo(map).bindPopup(issyDiv)
+    .bindTooltip(data.issy.name, {permanent: true, direction: "top", offset: [0, -10]});
+
+  map.fitBounds(points, {padding: [30, 30]});
+}
+
+document.getElementById("ok").onclick = async e => {
+  e.target.disabled = true;
+  try {
+    await fetch("ok", {method: "POST"});
+  } catch (err) {
+    e.target.disabled = false;
+    e.target.textContent = "Kunde inte nå skriptet – försök igen";
+    return;
+  }
+  document.getElementById("done").style.display = "flex";
+  // Browsers may refuse this for a normal tab; the message above covers that.
+  window.close();
+};
+
+init().catch(err => {
+  document.getElementById("sub").textContent = "Kunde inte ladda kartan: " + err.message;
+});
+</script>
+</body>
+</html>

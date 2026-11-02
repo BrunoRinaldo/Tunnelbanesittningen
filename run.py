@@ -1,4 +1,4 @@
-"""One-shot pipeline: geocode -> travel times -> calibrate -> solve -> export.
+"""One-shot pipeline: geocode -> review map (waits for OK) -> travel times -> calibrate -> solve -> export.
 
     python3 run.py              # real Google APIs (needs .env); spends money on
                                 # the full 63x63 matrix - travel.py prints the
@@ -9,8 +9,9 @@
     python3 run.py --participants svar.xlsx
                                 # import that spreadsheet to data/participants.json
                                 # first (format: README section 0). Without the
-                                # flag, the import step runs only when
-                                # data/participants.json is missing.
+                                # flag, data/Grupper.xlsx is imported on every run;
+                                # data/participants.json is only used as it is
+                                # when that file does not exist.
 
 travel.py refuses to spend without --yes; run.py passes it through on a real run.
 """
@@ -25,7 +26,7 @@ if "--participants" in sys.argv:
     i = sys.argv.index("--participants")
     PARTICIPANTS = sys.argv[i + 1] if i + 1 < len(sys.argv) else os.path.join(HERE, "data", "Grupper.xlsx")
 
-missing = [m for m in ("numpy", "openpyxl", "certifi") if not importlib.util.find_spec(m)]
+missing = [m for m in ("numpy", "scipy", "openpyxl", "certifi") if not importlib.util.find_spec(m)]
 if missing:
     print("Saknade paket:", ", ".join(missing))
     print(f"Installera med:  {sys.executable} -m pip install " + " ".join(missing))
@@ -34,20 +35,26 @@ if missing:
 
 def step(title, cmd):
     print(f"\n=== {title} " + "=" * (60 - len(title)))
-    r = subprocess.run([sys.executable] + cmd)
+    try:
+        r = subprocess.run([sys.executable] + cmd)
+    except KeyboardInterrupt:
+        sys.exit(f"\naborted at: {title}")
     if r.returncode != 0:
         sys.exit(f"\nfailed at: {title}")
 
 
 PARTS_JSON = os.path.join(HERE, "data", "participants.json")
-if PARTICIPANTS or not os.path.exists(PARTS_JSON):
-    src = PARTICIPANTS or os.path.join(HERE, "data", "Grupper.xlsx")
-    step("0/5  Deltagarlista", ["import_participants.py", src])
+src = PARTICIPANTS or os.path.join(HERE, "data", "Grupper.xlsx")
+if PARTICIPANTS or os.path.exists(src) or not os.path.exists(PARTS_JSON):
+    step("0/6  Deltagarlista", ["import_participants.py", src])
+else:
+    print("data/Grupper.xlsx saknas - använder befintlig data/participants.json")
 
-step("1/5  Geocoding", ["geocode.py"] + (["--fallback"] if DRY else []))
-step("2/5  Restider", ["travel.py"] + (["--haversine"] if HAVERSINE else ["--yes"]))
-step("3/5  Kalibrering", ["solve.py", "--calibrate"])
-step("4/5  Schemaläggning", ["solve.py"])
-step("5/5  Export", ["export.py"])
+step("1/6  Geocoding", ["geocode.py"] + (["--fallback"] if DRY else []))
+step("2/6  Kontrollkarta", ["review_map.py"] + ([] if HAVERSINE else ["--yes"]))
+step("3/6  Restider", ["travel.py"] + (["--haversine"] if HAVERSINE else ["--yes"]))
+step("4/6  Kalibrering", ["solve.py", "--calibrate"])
+step("5/6  Schemaläggning", ["solve.py"])
+step("6/6  Export", ["export.py"])
 
 print("\nKlart. Starta kartan med:  python3 serve.py")

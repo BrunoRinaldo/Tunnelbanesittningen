@@ -103,7 +103,7 @@ def short_addr(g):
     neighbourhood / municipality / county / country tail.
 
     Street + number is taken from the cleaned input address (curated, incl. the
-    MANUAL_FIXES). Postcode + city come from the cleaned address when it carries
+    data/address_fixes.json). Postcode + city come from the cleaned address when it carries
     them, otherwise from the geocoder's formatted string.
     """
     def strip_country(s):
@@ -311,14 +311,14 @@ def main():
         (f"Värdar över {round(sch['meta'].get('host_arrive_cap', 0))} min till egen rätt "
          f"(måste hinna laga mat)",
          _b("host_over_cap"), st.get("host_over_cap", 0)),
-        ("Ringordningsbrott (par utanför Issy-rang-ring)",
+        (f"Ringordningsbrott (par utanför {config.AFTERPARTY_NAME}-rang-ring)",
          _b("ring_violations"), st.get("ring_violations", 0)),
         ("T_TARGET (min)", "", round(sch["meta"].get("t_target", 0), 1)),
         ("Restidskälla", sch["meta"]["travel_source"], ""),
         ("", ""),
-        ("Ring 0 = förrätt", "längst från Issy pressas hit (mjuk preferens)"),
+        ("Ring 0 = förrätt", f"längst från {config.AFTERPARTY_NAME} pressas hit (mjuk preferens)"),
         ("Ring 1 = varmrätt", "mellanavstånd"),
-        ("Ring 2 = efterrätt", "närmast Issy pressas hit (mjuk preferens)"),
+        ("Ring 2 = efterrätt", f"närmast {config.AFTERPARTY_NAME} pressas hit (mjuk preferens)"),
     ]
     for r, row in enumerate(info, start=1):
         k, v = row[0], row[1]
@@ -374,7 +374,7 @@ def main():
            "→ avgång", "→ min", "→ färdsätt",
            "E: värdgrupp", "E: adress", "E: ankomst", "E: äter med",
            "→ avgång", "→ min", "→ färdsätt",
-           "Issy", "Restid tot (min)"],
+           config.AFTERPARTY_NAME, "Restid tot (min)"],
           rows,
           [7, 30, 11] + ([11, 36, 10, 40, 10, 7, 10] * 3) + [8, 14],
           freeze="C2")

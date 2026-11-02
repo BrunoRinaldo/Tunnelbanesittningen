@@ -167,6 +167,19 @@ def fill_holes(best, mode, pts_a, pts_b):
                 best[i][j], mode[i][j] = e, mo + "*"
 
 
+def issy_times(pts, issy, key, cache, spend):
+    """min(walk, transit) minutes + mode for everyone -> Issy (arrive 22:00)."""
+    arr_issy = ts(config.ARRIVE_AFTERPARTY)
+    iw = fetch_mode(pts, [issy], "walking", 0, key, cache, "->Issy walk", None, spend)
+    it = fetch_mode(pts, [issy], "transit", arr_issy, key, cache, "->Issy transit", None, spend)
+    issy_best, issy_mode = combine(iw, it)
+    for i in range(len(pts)):
+        if issy_best[i][0] is None:
+            e, mo, _ = est(pts[i], issy)
+            issy_best[i][0], issy_mode[i][0] = e, mo + "*"
+    return [r[0] for r in issy_best], [r[0] for r in issy_mode]
+
+
 def haversine_payload(pts, issy, ids):
     N = len(pts)
     walk = [[est(a, b)[0] for b in pts] for a in pts]
@@ -273,8 +286,7 @@ def main():
     tr_dess = fetch_mode(pts, pts, "transit", arr_dess, key, cache, "transit@dessert", transit_skip, spend)
 
     print("Leg 3 (everyone -> Issy, arrive 22:00) ...")
-    iw = fetch_mode(pts, [issy], "walking", 0, key, cache, "->Issy walk", None, spend)
-    it = fetch_mode(pts, [issy], "transit", arr_issy, key, cache, "->Issy transit", None, spend)
+    to_issy, to_issy_mode = issy_times(pts, issy, key, cache, spend)
 
     os.makedirs(os.path.dirname(CACHE), exist_ok=True)
     json.dump(cache, open(CACHE, "w"), indent=0)
@@ -286,14 +298,6 @@ def main():
     t2, mode2 = combine(walk, tr_dess)
     fill_holes(t1, mode1, pts, pts)
     fill_holes(t2, mode2, pts, pts)
-
-    issy_best, issy_mode = combine(iw, it)
-    for i in range(N):
-        if issy_best[i][0] is None:
-            e, mo, _ = est(pts[i], issy)
-            issy_best[i][0], issy_mode[i][0] = e, mo + "*"
-    to_issy = [r[0] for r in issy_best]
-    to_issy_mode = [r[0] for r in issy_mode]
 
     payload = {
         "ids": ids, "source": "google",

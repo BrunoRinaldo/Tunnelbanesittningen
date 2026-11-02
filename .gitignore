@@ -12,8 +12,13 @@ __pycache__/
 
 # participant PII - keep local only
 data/participants.csv
+data/address_fixes.json
 data/participants.json
 data/participants.json.bak
 data/Grupper.xlsx
 data/*.xlsx
 data/send_log.json
+
+# this year's notes and OS clutter
+dubbelkolla-med-lee.md
+.DS_Store

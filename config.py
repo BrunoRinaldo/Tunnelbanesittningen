@@ -24,6 +24,10 @@ ARRIVE_MAIN = "18:30"
 ARRIVE_DESSERT = "20:30"
 ARRIVE_AFTERPARTY = "22:00"
 
+# Stockholm county. geocode.py prefers matches inside this box and flags any
+# result outside it, so widen it if the event ever moves. (lat, lng)
+GEO_BOUNDS = ((58.85, 17.25), (59.85, 19.00))
+
 # ---------------------------------------------------------------- messaging (export.py)
 # Deadline shown in the "dubbelkolla info" SMS for guests to report errors.
 REACHOUT_DATE = "2026-11-08"      # YYYY-MM-DD

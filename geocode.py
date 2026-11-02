@@ -15,9 +15,7 @@ CACHE = os.path.join(os.path.dirname(os.path.abspath(__file__)), "cache", "geoco
 PARTS = os.path.join(os.path.dirname(os.path.abspath(__file__)), "data", "participants.json")
 OUT = os.path.join(os.path.dirname(os.path.abspath(__file__)), "data", "geocoded.json")
 
-# Bounding box sanity check: greater Stockholm
-LAT_RANGE = (59.15, 59.55)
-LNG_RANGE = (17.70, 18.40)
+(LAT_MIN, LNG_MIN), (LAT_MAX, LNG_MAX) = config.GEO_BOUNDS
 
 
 def _get(url):
@@ -27,7 +25,8 @@ def _get(url):
 def google(addr, key):
     url = "https://maps.googleapis.com/maps/api/geocode/json?" + urllib.parse.urlencode(
         {"address": addr, "key": key, "region": "se", "language": "sv",
-         "components": "country:SE"})
+         "components": "country:SE",
+         "bounds": f"{LAT_MIN},{LNG_MIN}|{LAT_MAX},{LNG_MAX}"})
     d = _get(url)
     if d.get("status") != "OK" or not d.get("results"):
         status = d.get("status", "ERROR")
@@ -47,7 +46,8 @@ def google(addr, key):
 
 def nominatim(addr):
     url = "https://nominatim.openstreetmap.org/search?" + urllib.parse.urlencode(
-        {"q": addr, "format": "json", "limit": 1, "countrycodes": "se"})
+        {"q": addr, "format": "json", "limit": 1, "countrycodes": "se",
+         "viewbox": f"{LNG_MIN},{LAT_MAX},{LNG_MAX},{LAT_MIN}"})
     d = _get(url)
     time.sleep(1.1)  # Nominatim usage policy
     if not d:
@@ -74,7 +74,7 @@ def main():
                                    if os.path.exists(CACHE) else {})
     people = json.load(open(PARTS, encoding="utf-8"))
 
-    targets = [(p["group_id"], clean(p["group_id"], p["address_raw"])) for p in people]
+    targets = [(p["group_id"], clean(p["address_raw"])) for p in people]
     targets.append(("ISSY", config.AFTERPARTY_ADDRESS))
 
     problems = []
@@ -88,8 +88,7 @@ def main():
             continue
         cache[addr] = res
         flag = ""
-        if not (LAT_RANGE[0] <= res["lat"] <= LAT_RANGE[1] and
-                LNG_RANGE[0] <= res["lng"] <= LNG_RANGE[1]):
+        if not (LAT_MIN <= res["lat"] <= LAT_MAX and LNG_MIN <= res["lng"] <= LNG_MAX):
             flag = "  <-- OUTSIDE STOCKHOLM, CHECK"
             problems.append((gid, addr, "OUT_OF_BOUNDS"))
         if res.get("partial") or res.get("location_type") in ("APPROXIMATE",):
@@ -101,7 +100,7 @@ def main():
 
     out = []
     for p in people:
-        addr = clean(p["group_id"], p["address_raw"])
+        addr = clean(p["address_raw"])
         g = cache.get(addr)
         if not g:
             continue
@@ -114,12 +113,12 @@ def main():
 
     print(f"\n{len(out)}/{len(people)} groups geocoded -> data/geocoded.json")
     if problems:
-        print("\nNEEDS ATTENTION (fix in addresses.py MANUAL_FIXES and re-run):")
+        print("\nNEEDS ATTENTION (fix in the sheet or data/address_fixes.json and re-run):")
         for gid, addr, st in problems:
             print(f"  group {gid}: {st}  {addr}")
 
     ungeocoded = [p["group_id"] for p in people
-                  if not cache.get(clean(p["group_id"], p["address_raw"]))]
+                  if not cache.get(clean(p["address_raw"]))]
     if ungeocoded or issy is None:
         parts = []
         if ungeocoded:

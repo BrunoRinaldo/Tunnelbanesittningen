@@ -10,29 +10,22 @@ innan utskick går till 126 riktiga personer. Ordning uppifrån och ner.
   skriptet ger (saknade fält, dubbla Grupp-ID).
 - [ ] Antal par är en **udda multipel av 3** (63, 69, …). Skriptet varnar
   annars.
-- [ ] **`addresses.py` → `MANUAL_FIXES`** är hårdkodad mot *förra* årets
-  Grupp-ID:n (18 adresser). Dessa stämmer nästan garanterat inte mot en ny
-  deltagarlista – rensa tabellen och bygg om den från de fel `geocode.py`
-  faktiskt listar för i år, annars rättas fel adresser för fel par.
+- [ ] **`data/address_fixes.json`** (frivillig, gitignorerad) gäller bara adresser
+  som står exakt som i filen, så gamla rader skadar inte en ny deltagarlista. Rätta
+  de fel `geocode.py` listar i kalkylbladet eller i den filen.
 
 ### Innan en ny/uppdaterad gruppfil laddas upp (samma eller nytt år)
 
-De flesta genererade filerna (`participants.json`, `geocoded.json`,
-`travel.json`, `schedule.json`, `web/data.json`, `out/*`) skrivs över
-automatiskt när pipelinen körs igen – rör dem inte för hand. Två filer gör
-**inte** det och måste nollställas manuellt, annars läcker gammal data in i
-den nya sittningen:
+Lägg den nya filen som `data/Grupper.xlsx` (eller använd `--participants`). När
+listan ändrats tar importen själv bort det som genererats från den gamla (även
+`baseline.json`) – rör dem inte för hand. En fil måste nollställas manuellt,
+annars läcker gammal data in i den nya sittningen (importen varnar):
 
 - [ ] **`data/send_log.json`** – raderas/töms. Den är nyckel:ad på
   Grupp-ID, inte person. Om nya filen återanvänder samma ID:n som förra
   körningen visar comms-sidan annars en helt ny person som "redan
   skickat/levererat" trots att hen aldrig fått något SMS – risk att man
   missar att skicka till riktiga mottagare.
-- [ ] **`data/baseline.json`** – raderas. `solve.py` återanvänder den filen
-  så fort `source` (google/haversine) och `SEED` matchar – den kollar
-  **inte** om antal par eller adresserna faktiskt ändrats. Med ny data blir
-  före/efter-jämförelsen annars missvisande, och om antalet par ändras kan
-  det krascha (permutationerna är dimensionerade för förra årets ringstorlek).
 
 ## 2. Nycklar och konton (`.env`)
 
@@ -89,7 +82,7 @@ den nya sittningen:
 - [ ] Skicka **Dubbelkolla info** i god tid före `REACHOUT_DATE` så folk hinner
   svara på fel.
 - [ ] Om någon rapporterar fel adress/allergi/alkoholpreferens: uppdatera
-  `data/participants.csv`, kör `python3 run.py` igen (cachen gör att bara
+  `data/Grupper.xlsx`, kör `python3 run.py` igen (cachen gör att bara
   det ändrade kostar något), skicka inte Dubbelkolla-SMS:et igen till alla.
 - [ ] Skicka **Schema** tidigt på kvällsdagen.
 - [ ] Skicka **Förrätt / Varmrätt / Efterrätt / Efterfest** vid respektive

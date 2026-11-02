@@ -15,7 +15,7 @@ alternerad) plus simulated annealing ovanpå för de icke-linjära straffen.
 
 ## 0. Indata: deltagarlistan
 
-Du lämnar in **en Excel-fil** som ser ut som `data/Grupper_mall.xlsx` – den råa
+Lägg **en Excel-fil** som `data/Grupper.xlsx` (kolumnerna nedan) – den råa
 exporten från anmälningsformuläret, en rad per **par**. `import_participants.py`
 läser den och skriver `data/participants.json`, som resten av pipelinen använder:
 
@@ -24,8 +24,10 @@ python3 import_participants.py               # läser data/Grupper.xlsx
 python3 import_participants.py svar.xlsx     # eller valfri sökväg
 ```
 
-`run.py` kör importen automatiskt när `data/participants.json` saknas, eller när
-du kör `python3 run.py --participants svar.xlsx`.
+`run.py` importerar `data/Grupper.xlsx` vid varje körning, eller filen du anger med
+`python3 run.py --participants svar.xlsx`. Om deltagarlistan ändrats tas allt som
+genererats från den gamla listan bort (kartdata, schema, restidsmatris, `out/`).
+Cacharna behålls, så oförändrade adresser kostar inget att köra om.
 
 ### Så ska kalkylbladet se ut
 
@@ -35,11 +37,12 @@ roll och rubrikernas versaler/mellanslag på slutet ignoreras. Extra kolumner
 
 | Kolumn | Krav | Format |
 |---|---|---|
-| `Grupp-ID` | obligatoriskt | heltal, unika och sammanhängande från 1. Används som gruppnummer rakt igenom (kartan, meddelanden, xlsx) |
+| `Grupp-ID` | frivilligt | heltal, unika. Används som gruppnummer rakt igenom (kartan, meddelanden, xlsx). Saknas det får paret lägsta lediga nummer, i radordning |
 | `Namn 1`, `Namn 2` | obligatoriskt | de två personerna i paret, ett namn i varje cell |
-| `Adress` | obligatoriskt | fritext, precis som paret skrev den. Stavfel, saknad kommun och tvetydiga gator rättas i `addresses.py` (`MANUAL_FIXES`), inte i kalkylbladet |
-| `Telefonnummer 1`, `Telefonnummer 2` | obligatoriskt | svenskt format, t.ex. `072-444 50 95`. `export.py` normaliserar till `+46` för SMS-gatewayen |
-| `Mailadress` | obligatoriskt | en adress för paret |
+| `Adress` | obligatoriskt | fritext, precis som paret skrev den. Stavfel och tvetydiga gator rättas i kalkylbladet eller i `data/address_fixes.json` (§5). Alla adresser i Stockholms län fungerar |
+| `Telefonnummer 1` | obligatoriskt | svenskt format, t.ex. `070-123 45 67`. `export.py` normaliserar till `+46` för SMS-gatewayen. SMS:en går hit |
+| `Telefonnummer 2` | frivilligt | samma format. Visas bara i exporterna |
+| `Mailadress` | frivilligt | en adress för paret. Visas bara i exporterna |
 | `Allergier` | frivilligt | fritext. Tom = inga allergier |
 | `Alkoholpreferenser` | frivilligt | fritext. Tom = paret vill ha alkohol (se `ALCOHOL_DEFAULT` i `config.py`). En ensam siffra från en formulärskala räknas som tom |
 
@@ -155,10 +158,15 @@ python3 run.py           # riktiga Google-restider (hämtar hela 63×63, kräver
 python3 serve.py         # kartan på http://localhost:8000
 ```
 
-`run.py` kör importsteget åt dig när `data/participants.json` saknas, eller med
+`run.py` kör importsteget åt dig varje gång, från `data/Grupper.xlsx` eller med
 `python3 run.py --participants Grupper.xlsx`.
 
-Stegen var för sig: `import_participants.py`, `geocode.py`, `travel.py --yes`,
+Efter geokodningen öppnar `run.py` ett kartfönster med alla par och deras restid
+till Issy. Tryck **OK** så fortsätter körningen, eller Ctrl+C i terminalen för att
+avbryta och rätta en adress. Google-restiderna till Issy (2 element per par) hämtas
+redan här och återanvänds från cachen av `travel.py`.
+
+Stegen var för sig: `import_participants.py`, `geocode.py`, `review_map.py --yes`, `travel.py --yes`,
 `solve.py --calibrate`, `solve.py`, `export.py`. `solve.py` skriver ut en
 före/efter-tabell (medel, std,
 p50, p90, max, längsta etapp, etapper över `LEG_CAP`, längsta värdetapp,
@@ -208,16 +216,23 @@ telefonnummer och allergierna vid just det bordet.
 
 ## 5. Adresser
 
-Formuläret var fritext, så `addresses.py` innehåller en `MANUAL_FIXES`-tabell för
-de 18 rader som behövde municipality, stavningsfix eller postnummerflytt
-(t.ex. `Fredrikskundsvägen` → `Fredrikslundsvägen`, `Norra Statsionsgatan` →
-`Norra Stationsgatan`, `Stationsvägen_13` → `Stationsvägen 13, Täby`).
+Formuläret är fritext. Stavfel rättas enklast direkt i kalkylbladet. Vill du behålla
+originalet: skapa `data/address_fixes.json` (gitignorerad, innehåller hemadresser),
+med adressen som den står i arket som nyckel:
+
+```json
+{"Storgatn 1": "Storgatan 1, 111 22 Stockholm"}
+```
+
+En adress utan postnummer och ortnamn antas ligga i Stockholm, så skriv ut orten
+om gatunamnet finns på flera ställen. Sökningen föredrar träffar i `GEO_BOUNDS`
+(`config.py`, Stockholms län).
 
 `geocode.py` flaggar allt som hamnar utanför Stockholmsområdet eller som Google
 markerar som approximativt. **Läs igenom den listan innan du skickar ut något** –
 en pin på fel sida stan förstör kvällen för sex personer.
 
-Ändrar någon adress: uppdatera `data/participants.csv`, kör `run.py` igen.
+Ändrar någon adress: uppdatera `data/Grupper.xlsx`, kör `run.py` igen.
 Cachen gör att bara den nya adressen kostar något.
 
 ---

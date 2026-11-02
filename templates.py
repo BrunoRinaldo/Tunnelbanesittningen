@@ -12,6 +12,8 @@ or if the override file is missing/corrupt.
 """
 import json, os, re
 
+import config
+
 HERE = os.path.dirname(os.path.abspath(__file__))
 STORE = os.path.join(HERE, "data", "message_templates.json")
 
@@ -42,7 +44,7 @@ DEFAULTS = {
         "När ni lagar mat måste ni ta hänsyn till:\n"
         "Allergier: [gästers_allergier]\n"
         "Alkoholpreferens: [gästers_alkoholpreferens]\n\n"
-        "Ses snart på issy!\n"
+        f"Ses snart på {config.AFTERPARTY_NAME}!\n"
         "Puss Puss,\nKulturnämnden"
     ))],
     "starter": [
@@ -88,7 +90,7 @@ DEFAULTS = {
             "Gästerna är framme kl [tid1]. Ni blir 6 personer (3 par inkl. er).\n\n"
             "Era gästers allergier / kostönskemål:\n[gästallergier]\n"
             "Era gästers alkoholpreferenser:\n[gästalkohol]\n\n"
-            "Efter efterrätten: efterfest kl [tid2] på Issy.\n\n"
+            f"Efter efterrätten: efterfest kl [tid2] på {config.AFTERPARTY_NAME}.\n\n"
             "Det är snart dags för sötsaker och drinkar!\nKulturnämnden"
         )),
         ("Gäst", (
@@ -97,13 +99,13 @@ DEFAULTS = {
             "framme kl [tid1] (vårt script estimerar ~[minuter_hit] min [färdsätt_hit], "
             "men dubbelkolla er exakta restid).\n"
             "Ring värden: [värdens_telefon]\n\n"
-            "Efter efterrätten: efterfest kl [tid2] på Issy.\n\n"
+            f"Efter efterrätten: efterfest kl [tid2] på {config.AFTERPARTY_NAME}.\n\n"
             "Det är snart dags för sötsaker och drinkar!\nKulturnämnden"
         )),
     ],
     "efterfest": [("", (
         "Dags för efterfest [name1] och [name2]!!!\n\n"
-        "Rätterna är avklarade, nu rullar vi vidare mot Issy. Ingen matlagning, inga "
+        f"Rätterna är avklarade, nu rullar vi vidare mot {config.AFTERPARTY_NAME}. Ingen matlagning, inga "
         "adresser att pricka av; bara ni, alla andra och en taggad kulturnämnd som väntar.\n\n"
         "Efterfest börjar kl [tid1] på adressen: [issy-adress].\n\n"
         "Vi ses i dimman!\nKulturnämnden"

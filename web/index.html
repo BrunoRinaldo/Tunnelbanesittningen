@@ -87,7 +87,7 @@
     <label style="display:flex;align-items:center;gap:8px;margin-top:10px;font-size:11.5px;cursor:pointer">
       <input type="checkbox" id="allRoutesToggle" onchange="toggleAllRoutes(this.checked)">
       Visa alla verkliga resvägar samtidigt
-      <span class="sub" style="font-size:10px">(plottrigt men kul – 189 anrop)</span>
+      <span class="sub" style="font-size:10px" id="allRoutesCost"></span>
     </label>
     <div class="sub" id="allRoutesStatus" style="margin-top:4px;display:none"></div>
   </div>
@@ -177,11 +177,12 @@ async function init(){
     position:{lat:issy.lat,lng:issy.lng},map,zIndex:50,
     icon:{path:google.maps.SymbolPath.CIRCLE,scale:11,fillColor:C.issy,fillOpacity:1,
           strokeColor:'#fff',strokeWeight:2},
-    title:'Issy – Brinellvägen 23 (efterfest 22:00)',
-    label:{text:'IS',color:'#062a1e',fontSize:'9px',fontWeight:'800'}
+    title:`${D.meta.afterparty.name} – ${D.meta.afterparty.address} (efterfest ${D.meta.arrive.afterparty})`,
+    label:{text:D.meta.afterparty.name.slice(0,2).toUpperCase(),color:'#062a1e',fontSize:'9px',fontWeight:'800'}
   });
 
   const s=D.meta.stats;
+  document.getElementById('allRoutesCost').textContent=`(plottrigt men kul – ${D.groups.length*3} anrop)`;
   document.getElementById('meta').textContent =
     `${D.meta.date} · ${D.groups.length} par · ${D.groups.length*2} personer · restider: ${D.meta.travel_source}`;
   document.getElementById('stats').innerHTML =
@@ -229,7 +230,7 @@ function clearSel(){
 }
 
 // leg 0 = Förrätt->Varmrätt, 1 = Varmrätt->Efterrätt, 2 = Efterrätt->Issy
-const LEG_LABEL=['Förrätt → Varmrätt','Varmrätt → Efterrätt','Efterrätt → Issy'];
+const LEG_LABEL=['Förrätt → Varmrätt','Varmrätt → Efterrätt','Efterrätt → efterfest'];
 
 function clearLeg(){
   document.getElementById('legPanel').classList.remove('show');
@@ -319,8 +320,8 @@ function select(gid){
     html+=`<div class="leg">→ ${L.depart} · ${Math.round(L.min||0)} min · ${L.mode==='walking'?'promenad':'kollektivt'} → ${L.arrive}</div>`;
   });
   html+=`<div class="stop"><div class="bul" style="background:${C.issy}"></div>
-    <div><div class="t">Efterfest ${D.meta.arrive.afterparty} <span class="a">· Issy</span></div>
-    <div class="a">Brinellvägen 23</div></div></div>`;
+    <div><div class="t">Efterfest ${D.meta.arrive.afterparty} <span class="a">· ${D.meta.afterparty.name}</span></div>
+    <div class="a">${D.meta.afterparty.address}</div></div></div>`;
   document.getElementById('dStops').innerHTML=html;
   document.getElementById('dWarn').textContent =
     D.meta.travel_source==='haversine' ? 'Restider är uppskattade (fågelvägen) – kör travel.py med API-nyckel för riktiga tider.' : '';
@@ -409,7 +410,7 @@ function copyMsg(btn){
     t+=`  Ni äter med: ${who(s.co)}\n`;
     t+=`→ Gå/åk ${r.legs[i].depart}, framme ${r.legs[i].arrive} (${Math.round(r.legs[i].min||0)} min)\n\n`;
   });
-  t+=`EFTERFEST ${D.meta.arrive.afterparty} – Issy, Brinellvägen 23\nTotal restid: ca ${Math.round(r.total_min)} min.`;
+  t+=`EFTERFEST ${D.meta.arrive.afterparty} – ${D.meta.afterparty.name}, ${D.meta.afterparty.address}\nTotal restid: ca ${Math.round(r.total_min)} min.`;
   navigator.clipboard.writeText(t);
   const o=btn.textContent; btn.textContent='Kopierat ✓';
   setTimeout(()=>btn.textContent=o,1200);

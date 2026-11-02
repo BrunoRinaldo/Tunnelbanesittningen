@@ -729,6 +729,8 @@ def main():
     payload = {
         "meta": {
             "date": config.EVENT_DATE, "issy": issy,
+            "afterparty": {"name": config.AFTERPARTY_NAME,
+                           "address": config.AFTERPARTY_ADDRESS.replace(", Sweden", "")},
             "arrive": {"starter": config.ARRIVE_STARTER, "main": config.ARRIVE_MAIN,
                        "dessert": config.ARRIVE_DESSERT, "afterparty": config.ARRIVE_AFTERPARTY},
             "travel_source": trv.get("source", "?"),
